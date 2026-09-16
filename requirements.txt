@@ -1,0 +1,11 @@
+# Core scientific stack for acoustic impedance inversion.
+# Prefer `pip install -e ".[dev]"` (uses pyproject.toml); this file mirrors it.
+numpy>=1.24
+scipy>=1.10
+pandas>=2.0
+matplotlib>=3.7
+segyio>=1.9
+lasio>=0.31
+xarray>=2023.1
+pyvista>=0.43
+pytest>=7.4
