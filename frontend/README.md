@@ -44,6 +44,14 @@ python3 scripts/build_cjk_subset.py          # public/fonts/cjk-subset.otf
 
 ## Deploy to Vercel
 
-Import the repo, set **Root Directory = `frontend`** (framework auto-detected as
-Vite, output `dist/`). One click, no backend, no environment variables. All
-figure computation runs on the user's machine (Pyodide/wasm).
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fc76d3656e%2FAcoustic-impedance-inversion&root-directory=frontend&project-name=mine-fusion-viz&repository-name=mine-fusion-viz)
+
+Click the button (it pre-fills **Root Directory = `frontend`**), or import the
+repo manually and set Root Directory to `frontend`. Framework is auto-detected as
+Vite (output `dist/`). One click, **no backend, no serverless functions, no
+environment variables** — a pure static site. All figure computation runs on the
+user's machine (Pyodide/WebAssembly).
+
+> The Python in the repo root is **not** used by the deploy. Vercel only builds
+> `frontend/` (`npm run build`). Python is an offline tool that produced the
+> committed dataset + font; the shipped site is 100% static frontend.

@@ -108,12 +108,26 @@ font otherwise). Enable it with `scripts/setup_fonts.sh` (needs sudo) or point
 
 ## Interactive web app (no-backend, static)
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fc76d3656e%2FAcoustic-impedance-inversion&root-directory=frontend&project-name=mine-fusion-viz&repository-name=mine-fusion-viz)
+
 `frontend/` is a Vite + React + TypeScript + WebGL2 app that ships a **fixed
 dataset** (exported from this pipeline) and renders it entirely client-side:
-draggable X/Y/Z slices of the impedance and rock-strength fields, a 3-D view,
-multi-well borehole logs, custom strength colormaps, and **in-browser
-publication figures via Pyodide + matplotlib** — with full Chinese localization.
-Deployable to Vercel with no backend. See `frontend/README.md`.
+draggable X/Y/Z slices, a semi-transparent 3-D **volume** with a movable
+**section (clipping) plane**, multi-well borehole logs, custom strength
+colormaps, and **in-browser publication figures via Pyodide + matplotlib** —
+with full Chinese localization. **Deploy is 100% static frontend** (Root
+Directory = `frontend`); no backend, no serverless functions.
+
+### Is this "pure frontend"? Yes — for what gets deployed.
+
+The **deployed website** is a pure static frontend: it runs entirely in the
+browser (WebGL2 for 3-D, Pyodide/WebAssembly for matplotlib) with no server and
+no cloud functions. **Python is never deployed and never runs at request time.**
+It lives in the repo only as the *offline* science + data pipeline that
+**produced the committed dataset** (`frontend/public/data/`) and the subset font.
+You can deploy the site without Python installed at all — Vercel only builds
+`frontend/`. If you ever want to regenerate the dataset, that's when you'd run
+the Python (`scripts/export_frontend_dataset.py`).
 
 ```bash
 python3 scripts/export_frontend_dataset.py   # regenerate fixed dataset (deterministic)
