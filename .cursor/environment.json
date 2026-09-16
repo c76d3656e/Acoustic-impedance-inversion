@@ -1,4 +1,4 @@
 {
   "name": "MWD-Seismic Strength Fusion",
-  "install": "python3 -m pip install --user --break-system-packages -e \".[dev]\""
+  "install": "python3 -m pip install --user --break-system-packages -e \".[dev]\" && npm --prefix frontend install"
 }

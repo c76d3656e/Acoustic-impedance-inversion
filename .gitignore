@@ -13,11 +13,13 @@ venv/
 # Generated results
 results/
 
-# Downloaded / generated data (keep folder structure + docs only)
-data/**
-!data/README.md
-!data/*/
-!data/**/.gitkeep
+# Downloaded / generated data at repo root (keep folder structure + docs only).
+# Scoped with a leading slash so it does NOT match frontend/public/data (the
+# fixed dataset that must ship with the static site).
+/data/**
+!/data/README.md
+!/data/*/
+!/data/**/.gitkeep
 
 # OS / editor
 .DS_Store

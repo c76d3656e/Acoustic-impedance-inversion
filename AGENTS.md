@@ -29,3 +29,27 @@ Project: MWD–Seismic physics-constrained rock-strength fusion (Python). See
 - Kriging (PyKrige) cost scales with the number of borehole samples and grid
   size; the synthetic-mine grid (25×20×48) is chosen to keep runs at a few
   seconds. Increasing `--n-holes` or grid resolution increases kriging time.
+
+### Frontend (`frontend/`) — no-backend static site
+
+- Stack: Vite + React + TypeScript + three.js (WebGL2, via `@react-three/fiber`)
+  + Pyodide (in-browser matplotlib). The `install` step runs
+  `npm --prefix frontend install`; dev/build use standard scripts
+  (`npm --prefix frontend run dev` / `run build`). See `frontend/README.md`.
+- It is a **pure static** app: all computation runs client-side. Figure export
+  loads Pyodide + matplotlib from the jsDelivr CDN at runtime (the wasm/packages
+  are fetched once and run locally). There is no server/cloud function.
+- The **fixed dataset** in `frontend/public/data/` (Float32 `.bin` fields +
+  `manifest.json` + `boreholes.json`) is committed and shipped with the site.
+  Regenerate it with `python3 scripts/export_frontend_dataset.py` (deterministic,
+  fixed seed) — do NOT run this in the environment `install`.
+- Chinese in the app is powered by a committed subset font
+  `frontend/public/fonts/cjk-subset.otf` (used by both the web UI `@font-face`
+  and Pyodide matplotlib). Rebuild it only if UI/label text changes, via
+  `python3 scripts/build_cjk_subset.py` — this needs a system Noto CJK font
+  (`scripts/setup_fonts.sh`) and is a build-time-only step; the committed subset
+  is what ships.
+- The root `.gitignore` scopes `/data/**` with a leading slash so it does NOT
+  ignore `frontend/public/data` (the shipped dataset).
+- Vercel deploy: set the project **Root Directory** to `frontend/` (its
+  `vercel.json` builds with Vite to `dist/`). No backend/env vars required.

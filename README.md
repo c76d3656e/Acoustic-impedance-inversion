@@ -106,6 +106,21 @@ Chinese labels need a CJK font. It is optional (figures fall back to the default
 font otherwise). Enable it with `scripts/setup_fonts.sh` (needs sudo) or point
 `AI_INVERSION_CJK_FONT` at a `.ttf`/`.otf` file.
 
+## Interactive web app (no-backend, static)
+
+`frontend/` is a Vite + React + TypeScript + WebGL2 app that ships a **fixed
+dataset** (exported from this pipeline) and renders it entirely client-side:
+draggable X/Y/Z slices of the impedance and rock-strength fields, a 3-D view,
+multi-well borehole logs, custom strength colormaps, and **in-browser
+publication figures via Pyodide + matplotlib** — with full Chinese localization.
+Deployable to Vercel with no backend. See `frontend/README.md`.
+
+```bash
+python3 scripts/export_frontend_dataset.py   # regenerate fixed dataset (deterministic)
+npm --prefix frontend install
+npm --prefix frontend run dev                # http://localhost:5173
+```
+
 ## Tests
 
 ```bash
