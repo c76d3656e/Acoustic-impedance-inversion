@@ -30,7 +30,12 @@ export const t = {
   view2d: "二维切片",
   view3d: "三维视图",
   showBoreholes: "显示钻孔",
-  showSlices: "显示切片面",
+  volumeOpacity: "体透明度",
+  sectionTool: "剖切工具",
+  sectionEnable: "启用剖切",
+  sectionAxis: "剖切方向",
+  sectionPos: "剖切位置",
+  sectionReverse: "反向剖切",
 
   exportButton: "生成出版级图片（Nature 风格）",
   exporting: "正在本地渲染…",

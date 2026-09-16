@@ -68,25 +68,50 @@ def generate_mine(
     gz = np.linspace(z0, z1, nz)  # 0 -> -120
 
     # --- latent competence field ------------------------------------------
+    # Strong, multi-scale LATERAL heterogeneity so horizontal (bench) slices
+    # are not uniform; the depth trend is kept but no longer dominates.
     depth_frac = _normalize(-gz)[None, None, :] * np.ones(shape)  # 0 top -> 1 bottom
     bench = np.floor(depth_frac * 10.0)
-    bench_offset = rng.uniform(-0.05, 0.05, size=11)[bench.astype(int)]
+    bench_offset = rng.uniform(-0.09, 0.09, size=11)[bench.astype(int)]
 
-    smooth = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(3, 3, 4)))
+    fine = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(1.5, 1.5, 2.0)))
+    med = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(4.0, 4.0, 5.0)))
+    coarse = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(8.0, 8.0, 8.0)))
 
     xx, yy, zz = np.meshgrid(gx, gy, gz, indexing="ij")
-    plane = 0.5 * xx / x1 + 0.5 * yy / y1 - (-zz) / 120.0
-    fractured = np.exp(-((plane - 0.05) ** 2) / (2 * 0.03**2))
 
-    competence = np.clip(
-        0.15 + 0.55 * depth_frac + bench_offset + 0.20 * smooth - 0.35 * fractured,
-        0.02, 1.0,
+    def _fracture(ax, ay, az, c, w):
+        plane = ax * xx / x1 + ay * yy / y1 + az * (-zz) / 120.0
+        return np.exp(-((plane - c) ** 2) / (2.0 * w**2))
+
+    fr1 = _fracture(0.6, 0.5, -0.7, 0.15, 0.05)   # dipping low-strength zone
+    fr2 = _fracture(-0.4, 0.7, 0.5, 0.55, 0.06)   # second, crossing zone
+
+    def _blob(cx, cy, cz, rx, ry, rz):
+        return np.exp(
+            -(((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2 + ((zz - cz) / rz) ** 2)
+        )
+
+    hi1 = _blob(360, 150, -55, 70, 70, 18)   # hard ore body
+    hi2 = _blob(120, 300, -90, 60, 60, 16)
+    lo1 = _blob(250, 220, -35, 85, 85, 16)   # weathered / soft lens
+
+    competence = (
+        0.10
+        + 0.35 * depth_frac
+        + bench_offset
+        + 0.30 * med + 0.16 * fine + 0.10 * coarse
+        + 0.32 * hi1 + 0.26 * hi2
+        - 0.48 * fr1 - 0.42 * fr2
+        - 0.32 * lo1
     )
+    # widen the distribution for stronger contrast, then clip to a valid range
+    competence = np.clip((competence - 0.5) * 1.4 + 0.5, 0.02, 1.0)
 
     ucs_true = UCS_MIN + UCS_RANGE * competence
 
-    independent = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(4, 4, 6)))
-    ai_latent = np.clip(0.8 * competence + 0.2 * independent, 0.0, 1.0)
+    ai_tex = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(3.0, 3.0, 4.0)))
+    ai_latent = np.clip(0.72 * competence + 0.18 * ai_tex + 0.10 * coarse, 0.0, 1.0)
     ai_true = AI_MIN + AI_RANGE * ai_latent
 
     # --- drill holes -------------------------------------------------------
