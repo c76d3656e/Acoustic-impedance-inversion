@@ -14,9 +14,12 @@ from .uncertainty_fusion import (
     precision_weighted_fusion,
     simple_weighted_fusion,
 )
+from .pipeline import run_fusion_pipeline, FusionResult
 
 __all__ = [
     "ImpedanceStrengthCalibrator",
     "precision_weighted_fusion",
     "simple_weighted_fusion",
+    "run_fusion_pipeline",
+    "FusionResult",
 ]

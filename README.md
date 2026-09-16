@@ -87,6 +87,25 @@ Seismic-only Stage I validation (`AI → seismic → AI`, with ground truth):
 python3 examples/run_stage1_synthetic.py --outdir results
 ```
 
+## Visualization suite
+
+```bash
+python3 examples/run_visualizations.py --outdir results/viz
+```
+
+Produces in `results/viz/`:
+
+- `impedance_slice.png`, `mwd_strength_slice.png`, `fused_strength_slice.png` —
+  report-style horizontal slices (viridis fill + dashed contours + drill-hole
+  bullseyes + scientific colorbar), matching the mine-report figure style.
+- `*_3d.png` — static 3-D renders (PyVista, off-screen).
+- `interactive/*.html` — **interactive** 3-D pages (Plotly): rotate/zoom/slice
+  volumes, isosurfaces and slice stacks in any browser (self-contained).
+
+Chinese labels need a CJK font. It is optional (figures fall back to the default
+font otherwise). Enable it with `scripts/setup_fonts.sh` (needs sudo) or point
+`AI_INVERSION_CJK_FONT` at a `.ttf`/`.otf` file.
+
 ## Tests
 
 ```bash

@@ -22,6 +22,7 @@ dependencies = [
     "pykrige>=1.7",
     "gstools>=1.5",
     "pylops>=2.2",
+    "plotly>=5.18",
 ]
 
 [project.optional-dependencies]
