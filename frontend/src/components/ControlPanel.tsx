@@ -1,13 +1,55 @@
+import { motion } from "motion/react";
+import NumberFlow from "@number-flow/react";
+import clsx from "clsx";
 import { useStore } from "../store";
 import type { SliceAxis } from "../types";
 import { t } from "../i18n";
 import ColormapEditor from "./ColormapEditor";
 
+function Segmented<T extends string>({
+  value, options, onChange, layoutId,
+}: {
+  value: T;
+  options: Array<{ value: T; label: string }>;
+  onChange: (v: T) => void;
+  layoutId: string;
+}) {
+  return (
+    <div className="segmented">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          className={clsx("seg-btn", value === o.value && "on")}
+          onClick={() => onChange(o.value)}
+        >
+          {value === o.value && (
+            <motion.span
+              layoutId={layoutId}
+              className="seg-highlight"
+              transition={{ type: "spring", bounce: 0, duration: 0.35 }}
+            />
+          )}
+          <span className="seg-label">{o.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function ControlPanel() {
-  const {
-    manifest, fieldKey, setFieldKey, axis, setAxis, sliceIndex, setSliceIndex,
-    view, setView, showBoreholes, setShowBoreholes, showSlices, setShowSlices,
-  } = useStore();
+  const manifest = useStore((s) => s.manifest);
+  const fieldKey = useStore((s) => s.fieldKey);
+  const setFieldKey = useStore((s) => s.setFieldKey);
+  const axis = useStore((s) => s.axis);
+  const setAxis = useStore((s) => s.setAxis);
+  const sliceIndex = useStore((s) => s.sliceIndex[axis]);
+  const setSliceIndex = useStore((s) => s.setSliceIndex);
+  const view = useStore((s) => s.view);
+  const setView = useStore((s) => s.setView);
+  const showBoreholes = useStore((s) => s.showBoreholes);
+  const setShowBoreholes = useStore((s) => s.setShowBoreholes);
+  const showSlices = useStore((s) => s.showSlices);
+  const setShowSlices = useStore((s) => s.setShowSlices);
   if (!manifest) return null;
 
   const { nx, ny, nz } = manifest.grid;
@@ -15,9 +57,7 @@ export default function ControlPanel() {
   const axisCoords: Record<SliceAxis, number[]> = {
     x: manifest.axes.x, y: manifest.axes.y, z: manifest.axes.z,
   };
-  const coord = axisCoords[axis][sliceIndex[axis]] ?? 0;
-  const posLabel = axis === "z" ? `${t.elevation} ${coord.toFixed(0)} ${t.meter}`
-    : `${axis.toUpperCase()} = ${coord.toFixed(0)} ${t.meter}`;
+  const coord = axisCoords[axis][sliceIndex] ?? 0;
 
   return (
     <div className="panel">
@@ -34,35 +74,29 @@ export default function ControlPanel() {
 
       <section>
         <h3>{t.panelView}</h3>
-        <div className="segmented">
-          <button className={view === "2d" ? "on" : ""} onClick={() => setView("2d")}>
-            {t.view2d}
-          </button>
-          <button className={view === "3d" ? "on" : ""} onClick={() => setView("3d")}>
-            {t.view3d}
-          </button>
-        </div>
-        {view === "3d" && (
-          <div className="flags">
+        <Segmented
+          layoutId="view-seg"
+          value={view}
+          onChange={(v) => setView(v as "2d" | "3d")}
+          options={[
+            { value: "2d", label: t.view2d },
+            { value: "3d", label: t.view3d },
+          ]}
+        />
+        <div className="flags">
+          {view === "3d" && (
             <label className="row checkbox">
               <input type="checkbox" checked={showSlices}
                 onChange={(e) => setShowSlices(e.target.checked)} />
               <span>{t.showSlices}</span>
             </label>
-            <label className="row checkbox">
-              <input type="checkbox" checked={showBoreholes}
-                onChange={(e) => setShowBoreholes(e.target.checked)} />
-              <span>{t.showBoreholes}</span>
-            </label>
-          </div>
-        )}
-        {view === "2d" && (
+          )}
           <label className="row checkbox">
             <input type="checkbox" checked={showBoreholes}
               onChange={(e) => setShowBoreholes(e.target.checked)} />
             <span>{t.showBoreholes}</span>
           </label>
-        )}
+        </div>
       </section>
 
       <section>
@@ -76,10 +110,15 @@ export default function ControlPanel() {
           </select>
         </label>
         <div className="slice-slider">
-          <div className="pos-label">{t.slicePos}：{posLabel}</div>
+          <div className="pos-label">
+            <span>{axis === "z" ? t.elevation : `${axis.toUpperCase()}`}</span>
+            <span className="pos-value">
+              <NumberFlow value={Math.round(coord)} /> {t.meter}
+            </span>
+          </div>
           <input
             type="range" min={0} max={axisMax[axis]} step={1}
-            value={sliceIndex[axis]}
+            value={sliceIndex}
             onChange={(e) => setSliceIndex(axis, parseInt(e.target.value))}
           />
         </div>

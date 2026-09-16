@@ -20,7 +20,10 @@ function GradientBar({ cmap, reverse }: { cmap: Colormap; reverse: boolean }) {
 }
 
 export default function ColormapEditor() {
-  const { colormap, reverse, setColormap, setReverse } = useStore();
+  const colormap = useStore((s) => s.colormap);
+  const reverse = useStore((s) => s.reverse);
+  const setColormap = useStore((s) => s.setColormap);
+  const setReverse = useStore((s) => s.setReverse);
   const [custom, setCustom] = useState<Colormap>(DEFAULT_CUSTOM);
   const isCustom = colormap.key === "custom";
 

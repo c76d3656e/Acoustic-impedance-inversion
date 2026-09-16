@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useStore } from "../store";
 import { buildLUT } from "../viz/colormaps";
 import { drawScaled, extractSlice, sliceToImageData } from "../viz/slice";
 import { t } from "../i18n";
 
 export default function SliceView2D() {
-  const { manifest, axis, sliceIndex, colormap, reverse, wells, showBoreholes } =
-    useStore();
+  const manifest = useStore((s) => s.manifest);
+  const axis = useStore((s) => s.axis);
+  const sliceIndex = useStore(useShallow((s) => s.sliceIndex));
+  const colormap = useStore((s) => s.colormap);
+  const reverse = useStore((s) => s.reverse);
+  const wells = useStore((s) => s.wells);
+  const showBoreholes = useStore((s) => s.showBoreholes);
   const field = useStore((s) => s.currentField());
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cbarRef = useRef<HTMLCanvasElement>(null);

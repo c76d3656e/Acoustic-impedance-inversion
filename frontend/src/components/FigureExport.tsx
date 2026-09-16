@@ -1,12 +1,19 @@
 import { useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { useShallow } from "zustand/react/shallow";
 import { useStore } from "../store";
 import { extractSlice } from "../viz/slice";
 import { renderFigure } from "../pyodide/plot";
 import { t } from "../i18n";
 
 export default function FigureExport() {
-  const { manifest, axis, sliceIndex, colormap, reverse, wells, showBoreholes } =
-    useStore();
+  const manifest = useStore((s) => s.manifest);
+  const axis = useStore((s) => s.axis);
+  const sliceIndex = useStore(useShallow((s) => s.sliceIndex));
+  const colormap = useStore((s) => s.colormap);
+  const reverse = useStore((s) => s.reverse);
+  const wells = useStore((s) => s.wells);
+  const showBoreholes = useStore((s) => s.showBoreholes);
   const field = useStore((s) => s.currentField());
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -61,14 +68,22 @@ export default function FigureExport() {
         {busy ? t.exporting : t.exportButton}
       </button>
       {status && <div className="status">{status}</div>}
-      {png && (
-        <div className="figure-result">
-          <img src={png} alt="figure" />
-          <a className="download" href={png} download="figure.png">
-            {t.download}
-          </a>
-        </div>
-      )}
+      <AnimatePresence>
+        {png && (
+          <motion.div
+            className="figure-result"
+            initial={{ opacity: 0, scale: 0.96, filter: "blur(8px)" }}
+            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+            exit={{ opacity: 0, scale: 0.98, filter: "blur(6px)" }}
+            transition={{ type: "spring", bounce: 0, duration: 0.45 }}
+          >
+            <img src={png} alt="figure" />
+            <a className="download" href={png} download="figure.png">
+              {t.download}
+            </a>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

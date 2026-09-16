@@ -23,7 +23,7 @@ TTC_CANDIDATES = [
     "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
 ]
 OUT = "frontend/public/fonts/cjk-subset.otf"
-EXTRA = "×·⁶²³μ°±—…“”‘’、，。（）：；！？　"
+EXTRA = "×·⁶²³μ°±−–—…“”‘’、，。（）：；！？　％‰"
 
 
 def find_font():

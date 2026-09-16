@@ -53,3 +53,12 @@ Project: MWD–Seismic physics-constrained rock-strength fusion (Python). See
   ignore `frontend/public/data` (the shipped dataset).
 - Vercel deploy: set the project **Root Directory** to `frontend/` (its
   `vercel.json` builds with Vite to `dist/`). No backend/env vars required.
+- Frontend performance conventions (keep it smooth): subscribe to Zustand with
+  **narrow selectors** (never destructure the whole store — that re-renders every
+  component on each slider tick); in the 3-D view (`Volume3D.tsx`) **mutate**
+  persistent three.js geometry/`CanvasTexture` objects on change and dispose them
+  on unmount rather than recreating per frame; animate only `transform`/`opacity`
+  (see `performance-cheatsheet`); the 3-D view is **code-split** (lazy-loaded) so
+  three.js isn't in the initial bundle. Motion via `motion` (Framer Motion) uses
+  critically-damped springs (`bounce: 0`) by default; libraries follow Emil
+  Kowalski's `pick-ui-library` (motion, @number-flow/react, clsx).

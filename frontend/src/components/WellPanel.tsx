@@ -35,7 +35,10 @@ function drawLog(
 }
 
 export default function WellPanel() {
-  const { wells, selectedWell, setSelectedWell, manifest } = useStore();
+  const wells = useStore((s) => s.wells);
+  const selectedWell = useStore((s) => s.selectedWell);
+  const setSelectedWell = useStore((s) => s.setSelectedWell);
+  const manifest = useStore((s) => s.manifest);
   const strengthRef = useRef<HTMLCanvasElement>(null);
   const drillRef = useRef<HTMLCanvasElement>(null);
   const well = wells.find((w) => w.id === selectedWell) ?? wells[0];
