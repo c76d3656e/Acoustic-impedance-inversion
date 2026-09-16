@@ -47,14 +47,43 @@ def ordinary_kriging_3d(
     if pts.ndim != 2 or pts.shape[1] != 3:
         raise ValueError("points must be (n, 3)")
 
-    ok = OrdinaryKriging3D(
-        pts[:, 0], pts[:, 1], pts[:, 2], val,
-        variogram_model=variogram_model, nlags=nlags,
+    ok = _ordinary_kriging_3d_fit(
+        pts, val, variogram_model=variogram_model, nlags=nlags,
+        gx=gx, gy=gy, gz=gz,
     )
     k, ss = ok.execute("grid", gx, gy, gz)  # shape (nz, ny, nx)
     mean = np.asarray(k).transpose(2, 1, 0)
     var = np.asarray(ss).transpose(2, 1, 0)
     return mean, var
+
+
+def _ordinary_kriging_3d_fit(pts, val, variogram_model, nlags, gx, gy, gz):
+    """Fit 3-D OK; fall back to a domain-scale spherical model if auto-fit fails.
+
+    A single vertical hole has no lateral lags, so PyKrige cannot estimate a
+    3-D variogram from the samples alone.  In that case we use the sample
+    variance as the sill and half the model diagonal as the range — the
+    interpolator then reverts to the (depth) mean away from the hole, which is
+    the correct sparse-well behaviour.
+    """
+    try:
+        return OrdinaryKriging3D(
+            pts[:, 0], pts[:, 1], pts[:, 2], val,
+            variogram_model=variogram_model, nlags=nlags,
+        )
+    except Exception:
+        sill = float(np.var(val)) + 1e-6
+        dx = float(np.asarray(gx)[-1] - np.asarray(gx)[0])
+        dy = float(np.asarray(gy)[-1] - np.asarray(gy)[0])
+        dz = float(np.asarray(gz)[-1] - np.asarray(gz)[0])
+        vrange = 0.5 * float(np.sqrt(dx * dx + dy * dy + dz * dz))
+        return OrdinaryKriging3D(
+            pts[:, 0], pts[:, 1], pts[:, 2], val,
+            variogram_model=variogram_model,
+            variogram_parameters={
+                "sill": sill, "range": vrange, "nugget": 0.1 * sill,
+            },
+        )
 
 
 def regression_kriging_3d(

@@ -43,3 +43,23 @@ def test_impedance_calibration_monotonic():
     mu, sigma = cal.predict(np.array([5e6, 9e6]))
     assert mu[1] > mu[0]  # higher impedance -> higher strength
     assert np.all(sigma > 0)
+
+
+def test_pipeline_accepts_precomputed_impedance_and_one_hole():
+    from datasets import generate_mine, subset_holes
+    from fusion import run_fusion_pipeline
+    from validation import summary
+
+    ds = generate_mine(shape=(10, 8, 32), n_holes=4, seed=5)
+    full = run_fusion_pipeline(ds, seed=5)
+    reused = run_fusion_pipeline(ds, seed=5, ai_inv=full.ai_inv)
+    assert np.allclose(full.S_F, reused.S_F)
+    assert np.allclose(full.ai_inv, reused.ai_inv)
+
+    one = subset_holes(ds, 1)
+    res1 = run_fusion_pipeline(one, seed=5, ai_inv=full.ai_inv)
+    assert res1.S_F.shape == ds.ucs_true.shape
+    assert np.all(np.isfinite(res1.S_F))
+    mwd = summary(ds.ucs_true, res1.S_M)
+    fused = summary(ds.ucs_true, res1.S_F)
+    assert fused["RMSE"] <= mwd["RMSE"] + 1e-6

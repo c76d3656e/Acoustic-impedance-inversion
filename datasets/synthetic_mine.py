@@ -148,3 +148,40 @@ def generate_mine(
         V=V, N=N, M=M, F=F, ucs_at_holes=ucs_holes,
         meta={"shape": shape, "extent": extent, "n_holes": n_holes, "seed": seed},
     )
+
+
+def unique_hole_xy_indices(ds: MineDataset) -> np.ndarray:
+    """Unique hole ``(ix, iy)`` pairs in first-seen order, shape ``(n_holes, 2)``."""
+    pairs = np.stack([np.asarray(ds.hole_ix), np.asarray(ds.hole_iy)], axis=1)
+    _, first = np.unique(pairs, axis=0, return_index=True)
+    return pairs[np.sort(first)]
+
+
+def subset_holes(ds: MineDataset, n_holes: int) -> MineDataset:
+    """Keep the first ``n_holes`` unique drill holes (nested prefix of the set).
+
+    Sample arrays (MWD parameters, UCS, coordinates) are filtered to those
+    holes; the 3-D ground-truth volumes are unchanged.  Prefix nesting means
+    the ``k``-hole subset is contained in the ``k+1``-hole subset, which is
+    what the well-count series experiment needs.
+    """
+    pairs = unique_hole_xy_indices(ds)
+    n_total = len(pairs)
+    if n_holes < 1 or n_holes > n_total:
+        raise ValueError(f"n_holes must be in 1..{n_total}, got {n_holes}")
+    keep = pairs[:n_holes]
+    sample_pairs = np.stack([np.asarray(ds.hole_ix), np.asarray(ds.hole_iy)], axis=1)
+    mask = (sample_pairs[:, None, :] == keep[None, :, :]).all(axis=2).any(axis=1)
+    meta = dict(ds.meta)
+    meta["n_holes"] = int(n_holes)
+    return MineDataset(
+        gx=ds.gx, gy=ds.gy, gz=ds.gz,
+        ucs_true=ds.ucs_true, ai_true=ds.ai_true,
+        hole_ix=ds.hole_ix[mask],
+        hole_iy=ds.hole_iy[mask],
+        hole_iz=ds.hole_iz[mask],
+        hole_xyz=ds.hole_xyz[mask],
+        V=ds.V[mask], N=ds.N[mask], M=ds.M[mask], F=ds.F[mask],
+        ucs_at_holes=ds.ucs_at_holes[mask],
+        meta=meta,
+    )

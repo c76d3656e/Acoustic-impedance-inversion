@@ -27,3 +27,22 @@ def test_mwd_monotonic_with_strength():
     hi = ds.ucs_at_holes > np.median(ds.ucs_at_holes)
     assert ds.V[hi].mean() < ds.V[~hi].mean()
     assert ds.F[hi].mean() > ds.F[~hi].mean()
+
+
+def test_subset_holes_is_nested_prefix():
+    from datasets import subset_holes, unique_hole_xy_indices
+
+    ds = generate_mine(shape=(12, 10, 16), n_holes=5, seed=4)
+    pairs = unique_hole_xy_indices(ds)
+    assert len(pairs) == 5
+    sub = subset_holes(ds, 2)
+    kept = unique_hole_xy_indices(sub)
+    assert len(kept) == 2
+    assert np.array_equal(kept, pairs[:2])
+    assert np.array_equal(sub.ucs_true, ds.ucs_true)
+    assert sub.ucs_at_holes.size == ds.ucs_at_holes.size * 2 // 5
+    try:
+        subset_holes(ds, 0)
+        assert False, "expected ValueError"
+    except ValueError:
+        pass

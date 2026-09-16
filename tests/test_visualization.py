@@ -30,6 +30,28 @@ def test_report_slice_writes_png(tmp_path):
     assert os.path.getsize(path) > 1000
 
 
+def test_slice_grid_writes_png(tmp_path):
+    ds = generate_mine(shape=(12, 10, 24), n_holes=4, seed=1)
+    holes = np.unique(ds.hole_xyz[:, :2], axis=0)
+    out = str(tmp_path / "grid.png")
+    from visualization import plot_slice_grid
+
+    path = plot_slice_grid(
+        [
+            (ds.ucs_true, "n = 1", holes[:1]),
+            (ds.ucs_true, "n = 2", holes[:2]),
+        ],
+        ds.gx, ds.gy, 12, out,
+        cbar_label="UCS (MPa)",
+        vmin=float(ds.ucs_true.min()),
+        vmax=float(ds.ucs_true.max()),
+        ncols=2,
+        suptitle="grid test",
+    )
+    assert os.path.exists(path)
+    assert os.path.getsize(path) > 1000
+
+
 def test_interactive_html_written(tmp_path):
     ds = generate_mine(shape=(10, 8, 20), n_holes=4, seed=2)
     v_html = str(tmp_path / "vol.html")
