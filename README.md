@@ -1,162 +1,137 @@
-# MWD–Seismic Physics-Constrained Rock-Strength Fusion
+# MWD–地震 物理约束岩石强度融合
 
-Build a **3-D rock-strength field** `S(x, y, z)` for open-pit blast/rock
-characterization by fusing two complementary, independently-inverted sources:
+通过融合两路**独立反演、互补观测**的信息，为露天矿爆破/岩体刻画构建三维岩石强度场 \(S(x,y,z)\)：
 
-- **MWD** (Measurement-While-Drilling) — *local, high-resolution* mechanical
-  response along drill holes → UCS.
-- **3-D seismic** — *regional, continuous* structure → acoustic impedance
-  `AI = ρ·Vp`.
+- **MWD**（随钻测量）——钻孔沿线、分辨率高的力学响应 → 单轴抗压强度 UCS。
+- **三维地震**——区域连续的结构信息 → 波阻抗 \(\mathrm{AI}=\rho\cdot V_p\)。
 
 ```
-        MWD ─▶ PG-GPR UCS ─▶ 3D regression kriging ─▶ S_MWD, σ_MWD
+        MWD ─▶ PG-GPR UCS ─▶ 三维回归克里金 ─▶ S_MWD, σ_MWD
                                                               ╲
- 3D seismic ─▶ impedance inversion ─▶ AI→UCS calibration ─▶ S_Z, σ_Z
+ 三维地震 ─▶ 波阻抗反演 ─▶ AI→UCS 标定 ─▶ S_Z, σ_Z
                                                               ╱
-              uncertainty-aware (precision-weighted) fusion ─▶ S_fused, σ_fused
+              不确定度感知（精度加权）融合 ─▶ S_fused, σ_fused
                                               │
-                          3D strength volume ─▶ horizontal slices (e.g. z = −60 m)
+                          三维强度体 ─▶ 水平切片（如 z = −60 m）
 ```
 
-This is **not** a black-box end-to-end network. It is *dual-branch independent
-inversion + physics-constrained late fusion*, because no public dataset provides
-co-located `MWD + UCS + 3D seismic + AI`. Each branch is validated on realistic
-public-style data, and the fusion is evaluated against a co-located synthetic
-ground truth.
+这**不是**端到端黑盒网络，而是**双分支独立反演 + 物理约束的后期融合**：公开数据中不存在共定位的 `MWD + UCS + 三维地震 + AI`。每一分支先在可复现的公开风格数据上验证，融合再在共定位合成矿山真值上定量评价。
 
-## Why uncertainty-aware fusion?
+完整公式、推导与钻孔数量实验见 **[docs/技术说明.md](docs/技术说明.md)**。图件保存在 [`docs/images/`](docs/images/)。
 
-Treating each source as `N(μ, σ²)`, the inverse-variance combination
+## 为什么要用不确定度感知融合？
+
+把每一路看成高斯估计 \(N(\mu,\sigma^2)\)，逆方差组合
 
 ```
 μ_f = (μ_M/σ_M² + μ_Z/σ_Z²) / (1/σ_M² + 1/σ_Z²)      σ_f² = 1 / (1/σ_M² + 1/σ_Z²)
 ```
 
-lets the locally more reliable source dominate automatically — near drill holes
-MWD wins; away from them the continuous seismic field takes over. On the
-benchmark this beats both single sources **and** naive fixed-weight averaging.
+会让**局部更可信的源自动占优**——钻孔附近信 MWD，远离钻孔则信连续波阻抗场。
 
-## Project layout
+仅靠钻孔做三维克里金插值，横向采样太稀，无法重建硬矿体、软弱带等结构；波阻抗场是全空间连续的，标定成强度后把这些结构补上。在本仓库基准上，不确定度加权融合显著优于「仅钻孔插值」和「固定权重平均」。
+
+## 项目结构
 
 ```
-├── datasets/        # synthetic 3-D model + co-located synthetic-mine benchmark
-├── dataio/          # 5-module data-warehouse loaders (MWD-UCS / MWD-spatial /
-│                    #   Marmousi2 / Penobscot / synthetic-mine)
-├── mwd/             # MWD features (Teale specific energy) + PG-GPR UCS model
-├── inversion/       # wavelet, reflectivity, forward, model-based, sparse-spike,
-│                    #   + PyLops post-stack inversion
-├── preprocessing/   # SEG-Y (segyio), LAS (lasio), depth↔time tie
-├── geostats/        # 3-D ordinary & regression kriging (mean + variance)
-├── fusion/          # AI→UCS calibration (GP) + precision-weighted fusion
-├── validation/      # R², RMSE, MAE, blind-well test
-├── visualization/   # slice maps, cross-sections, fusion panels, PyVista 3-D
-├── examples/        # run_stage1_synthetic.py, run_fusion_benchmark.py
-├── scripts/         # download_datasets.py (manual, for real data)
-└── tests/           # pytest suite
+├── datasets/        # 合成三维模型 + 共定位合成矿山基准
+├── dataio/          # 五模块数据仓加载器（MWD-UCS / MWD 空间 /
+│                    #   Marmousi2 / Penobscot / 合成矿山）
+├── mwd/             # MWD 特征（Teale 比能）+ PG-GPR UCS 模型
+├── inversion/       # 子波、反射系数、正演、模型基 / 稀疏脉冲 /
+│                    #   PyLops 叠后反演
+├── preprocessing/   # SEG-Y (segyio)、LAS (lasio)、深度↔时间标定
+├── geostats/        # 三维普通克里金与回归克里金（均值 + 方差）
+├── fusion/          # AI→UCS 标定（GP）+ 精度加权融合
+├── validation/      # R²、RMSE、MAE、盲井检验
+├── visualization/   # 切片、剖面、融合面板、PyVista 三维
+├── examples/        # 基准、可视化、文档出图脚本
+├── docs/            # 技术说明 + 已跟踪的图件（docs/images/）
+├── scripts/         # download_datasets.py（真实数据，需手动下载）
+└── tests/           # pytest 套件
 ```
 
-## Setup
+## 安装
 
 ```bash
 python3 -m pip install --user --break-system-packages -e ".[dev]"
 ```
 
-(Exactly what the Cloud Agent environment `install` step runs. For local work you
-can instead use a virtualenv: `python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"`.)
+（Cloud Agent 环境的 `install` 步骤即为此命令。本地也可：`python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"`。）
 
-## Run
+中文图题需要 CJK 字体。可选安装：`scripts/setup_fonts.sh`（需 sudo），或把 `AI_INVERSION_CJK_FONT` 指到某个 `.ttf`/`.otf`。未安装时图仍能出，汉字可能显示为方框。
 
-End-to-end dual-branch fusion benchmark (fully offline, co-located ground truth):
+## 运行
+
+端到端双分支融合基准（完全离线，带共定位真值）：
 
 ```bash
 python3 examples/run_fusion_benchmark.py --outdir results
 ```
 
-Produces in `results/`:
+在 `results/` 中生成：
 
-- `S_fused.npy`, `sigma_fused.npy`, `S_true.npy`
-- `figures/fusion_panels.png` — (a) MWD strength, (b) seismic impedance,
-  (c) impedance-derived strength, (d) fused strength, (e) fusion uncertainty
-- `figures/fused_strength_elev_{-24,-60,-96}.png` — horizontal slices
-- a metrics table for the 4 cases (MWD-only, seismic-only, simple weighted,
-  uncertainty-aware) plus a **spatial-blind** MWD hole hold-out score
+- `S_fused.npy`、`sigma_fused.npy`、`S_true.npy`
+- `figures/fusion_panels.png` — (a) MWD 强度，(b) 地震波阻抗，(c) 阻抗导出强度，(d) 融合强度，(e) 融合不确定度
+- `figures/fused_strength_elev_{-24,-60,-96}.png` — 水平切片
+- 四种方案的指标表（仅 MWD、仅地震、简单加权、不确定度加权）以及 **空间盲孔** MWD 留出得分
 
-Seismic-only Stage I validation (`AI → seismic → AI`, with ground truth):
+再生成本仓库跟踪的中文技术图件（融合优势对比 + 1→12 口钻孔系列）：
+
+```bash
+python3 examples/run_docs_figures.py --outdir docs/images
+```
+
+地震单分支 Stage I 验证（`AI → 地震 → AI`，带真值）：
 
 ```bash
 python3 examples/run_stage1_synthetic.py --outdir results
 ```
 
-## Visualization suite
+## 可视化套件
 
 ```bash
 python3 examples/run_visualizations.py --outdir results/viz
 ```
 
-Produces in `results/viz/`:
+在 `results/viz/` 中生成：
 
-- `impedance_slice.png`, `mwd_strength_slice.png`, `fused_strength_slice.png` —
-  report-style horizontal slices (viridis fill + dashed contours + drill-hole
-  bullseyes + scientific colorbar), matching the mine-report figure style.
-- `*_3d.png` — static 3-D renders (PyVista, off-screen).
-- `interactive/*.html` — **interactive** 3-D pages (Plotly): rotate/zoom/slice
-  volumes, isosurfaces and slice stacks in any browser (self-contained).
+- `impedance_slice.png`、`mwd_strength_slice.png`、`fused_strength_slice.png` —
+  报告风格水平切片（viridis 填充 + 虚线等值线 + 钻孔靶心 + 科学色标）。
+- `*_3d.png` — 静态三维渲染（PyVista，离屏）。
+- `interactive/*.html` — **可交互**三维页面（Plotly）：旋转/缩放/切片，浏览器中打开即可。
 
-Chinese labels need a CJK font. It is optional (figures fall back to the default
-font otherwise). Enable it with `scripts/setup_fonts.sh` (needs sudo) or point
-`AI_INVERSION_CJK_FONT` at a `.ttf`/`.otf` file.
-
-## Interactive web app (no-backend, static)
+## 交互式网页（无后端，纯静态）
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fc76d3656e%2FAcoustic-impedance-inversion&root-directory=frontend&project-name=mine-fusion-viz&repository-name=mine-fusion-viz)
 
-`frontend/` is a Vite + React + TypeScript + WebGL2 app that ships a **fixed
-dataset** (exported from this pipeline) and renders it entirely client-side:
-draggable X/Y/Z slices, a semi-transparent 3-D **volume** with a movable
-**section (clipping) plane**, multi-well borehole logs, custom strength
-colormaps, and **in-browser publication figures via Pyodide + matplotlib** —
-with full Chinese localization. **Deploy is 100% static frontend** (Root
-Directory = `frontend`); no backend, no serverless functions.
-
-### Is this "pure frontend"? Yes — for what gets deployed.
-
-The **deployed website** is a pure static frontend: it runs entirely in the
-browser (WebGL2 for 3-D, Pyodide/WebAssembly for matplotlib) with no server and
-no cloud functions. **Python is never deployed and never runs at request time.**
-It lives in the repo only as the *offline* science + data pipeline that
-**produced the committed dataset** (`frontend/public/data/`) and the subset font.
-You can deploy the site without Python installed at all — Vercel only builds
-`frontend/`. If you ever want to regenerate the dataset, that's when you'd run
-the Python (`scripts/export_frontend_dataset.py`).
+`frontend/` 是 Vite + React + TypeScript + WebGL2 应用，随仓库发布**固定数据集**，全部在浏览器中计算：可拖动 X/Y/Z 切片、半透明三维体 + 可移动剖面、多井测井曲线、自定义强度色标，以及 **Pyodide + matplotlib 在浏览器内出中文出版图**。部署是 100% 静态前端（Root Directory = `frontend`），无后端、无 serverless。
 
 ```bash
-python3 scripts/export_frontend_dataset.py   # regenerate fixed dataset (deterministic)
+python3 scripts/export_frontend_dataset.py   # 重新导出固定数据集（确定性）
 npm --prefix frontend install
 npm --prefix frontend run dev                # http://localhost:5173
 ```
 
-## Tests
+## 测试
 
 ```bash
 python3 -m pytest
 ```
 
-## Two-stage data roadmap
+## 两阶段数据路线
 
-| Stage | Data | Purpose | Status |
+| 阶段 | 数据 | 用途 | 状态 |
 | --- | --- | --- | --- |
-| **Algorithm validation** | Marmousi2 / synthetic | seismic→AI, MWD→UCS→kriging | ✅ runnable offline |
-| **Co-located benchmark** | synthetic-mine (500×400×120 m, 10 benches) | dual-branch fusion vs ground truth | ✅ implemented |
-| **Field data** | Penobscot 3D + Hansen MWD + MWD-UCS | real-data validation | I/O + loaders implemented |
+| **算法验证** | Marmousi2 / 合成 | 地震→AI，MWD→UCS→克里金 | 可离线运行 |
+| **共定位基准** | 合成矿山（500×400×120 m，10 个台阶） | 双分支融合 vs 真值 | 已实现 |
+| **现场数据** | Penobscot 3D + Hansen MWD + MWD-UCS | 真实数据验证 | I/O 与加载器已实现 |
 
-Public datasets are **split by nature** (MWD without seismic, seismic without
-MWD). We therefore validate each branch on real-style public data, fuse on a
-physically-constrained co-located synthetic benchmark, and keep the loaders ready
-for field data. Fetch real data with:
+公开数据在物理上是**拆开的**（有 MWD 无地震，或有地震无 MWD）。因此各分支在类真实公开数据上验证，融合在物理约束的共定位合成基准上评价，并保留现场数据加载器。获取真实数据：
 
 ```bash
 python scripts/download_datasets.py --dataset marmousi2 --dest data/marmousi2
 python scripts/download_datasets.py --dataset penobscot --dest data/penobscot
 ```
 
-See `data/README.md` for all five modules and their sources.
+五个数据模块及来源见 `data/README.md`。

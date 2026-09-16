@@ -29,6 +29,10 @@ Project: MWD–Seismic physics-constrained rock-strength fusion (Python). See
 - Kriging (PyKrige) cost scales with the number of borehole samples and grid
   size; the synthetic-mine grid (25×20×48) is chosen to keep runs at a few
   seconds. Increasing `--n-holes` or grid resolution increases kriging time.
+- Tracked Chinese publication figures live in `docs/images/` and are
+  regenerated with `python3 examples/run_docs_figures.py --outdir docs/images`
+  (CJK font required for labels; see `scripts/setup_fonts.sh`). The technical
+  note is `docs/技术说明.md`.
 
 ### Frontend (`frontend/`) — no-backend static site
 
