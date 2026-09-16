@@ -14,17 +14,31 @@ dependencies = [
     "scipy>=1.10",
     "pandas>=2.0",
     "matplotlib>=3.7",
+    "scikit-learn>=1.3",
     "segyio>=1.9",
     "lasio>=0.31",
     "xarray>=2023.1",
     "pyvista>=0.43",
+    "pykrige>=1.7",
+    "gstools>=1.5",
+    "pylops>=2.2",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.4"]
 
 [tool.setuptools]
-packages = ["datasets", "inversion", "preprocessing", "validation", "visualization"]
+packages = [
+    "datasets",
+    "dataio",
+    "inversion",
+    "preprocessing",
+    "mwd",
+    "geostats",
+    "fusion",
+    "validation",
+    "visualization",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

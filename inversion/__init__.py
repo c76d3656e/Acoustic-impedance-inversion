@@ -26,6 +26,11 @@ from .forward import (
 from .model_based import invert_trace, invert_volume, background_model
 from .sparse_spike import sparse_spike_inversion
 
+try:  # PyLops is optional at import time
+    from .pylops_inversion import poststack_inversion
+except Exception:  # pragma: no cover - only if pylops missing
+    poststack_inversion = None
+
 __all__ = [
     "ricker",
     "reflectivity_from_impedance",
@@ -39,4 +44,5 @@ __all__ = [
     "invert_volume",
     "background_model",
     "sparse_spike_inversion",
+    "poststack_inversion",
 ]

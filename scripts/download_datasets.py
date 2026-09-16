@@ -29,6 +29,9 @@ SOURCES = {
     "marmousi2": "https://wiki.seg.org/wiki/AGL_Elastic_Marmousi",
     "penobscot": "https://wiki.seg.org/wiki/Penobscot_3D",
     "penobscot_zenodo": "https://zenodo.org/records/1325077",
+    "mwd_spatial": "https://zenodo.org/records/10358374",
+    "mwd_raw": "https://catalog.data.gov/dataset/data-from-st-project-21049-improving-subsurface-characterization-with-monitoring-while-dri",
+    "mwd_ucs": "https://www.nature.com/articles/s41598-025-93111-4",
 }
 
 

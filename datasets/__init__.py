@@ -10,5 +10,11 @@ from .synthetic import (
     layered_property_model,
     acoustic_impedance,
 )
+from .synthetic_mine import generate_mine, MineDataset
 
-__all__ = ["layered_property_model", "acoustic_impedance"]
+__all__ = [
+    "layered_property_model",
+    "acoustic_impedance",
+    "generate_mine",
+    "MineDataset",
+]

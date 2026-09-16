@@ -10,9 +10,14 @@ dist/
 .venv/
 venv/
 
-# Generated results and downloaded data
+# Generated results
 results/
-data/
+
+# Downloaded / generated data (keep folder structure + docs only)
+data/**
+!data/README.md
+!data/*/
+!data/**/.gitkeep
 
 # OS / editor
 .DS_Store
