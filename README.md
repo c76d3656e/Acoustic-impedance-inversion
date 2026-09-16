@@ -58,18 +58,18 @@ benchmark this beats both single sources **and** naive fixed-weight averaging.
 ## Setup
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -e ".[dev]"
+python3 -m pip install --user --break-system-packages -e ".[dev]"
 ```
 
-(Exactly what the Cloud Agent environment `install` step runs.)
+(Exactly what the Cloud Agent environment `install` step runs. For local work you
+can instead use a virtualenv: `python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"`.)
 
 ## Run
 
 End-to-end dual-branch fusion benchmark (fully offline, co-located ground truth):
 
 ```bash
-.venv/bin/python examples/run_fusion_benchmark.py --outdir results
+python3 examples/run_fusion_benchmark.py --outdir results
 ```
 
 Produces in `results/`:
@@ -84,13 +84,13 @@ Produces in `results/`:
 Seismic-only Stage I validation (`AI → seismic → AI`, with ground truth):
 
 ```bash
-.venv/bin/python examples/run_stage1_synthetic.py --outdir results
+python3 examples/run_stage1_synthetic.py --outdir results
 ```
 
 ## Tests
 
 ```bash
-.venv/bin/pytest
+python3 -m pytest
 ```
 
 ## Two-stage data roadmap
