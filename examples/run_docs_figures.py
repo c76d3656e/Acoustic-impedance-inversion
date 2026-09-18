@@ -2,7 +2,7 @@ r"""Generate the tracked publication figures under ``docs/images/``.
 
 Produces:
 
-* fusion-advantage panels (truth / MWD-only / seismic-only / fused)
+* fusion-advantage panels (truth / MWD / seismic / fused, plus pred−truth heatmaps)
 * a nested well-count series (1 hole, 2 holes, ... all holes) for MWD-only
   interpolation versus impedance-fused strength
 * RMSE / R² curves and a CSV of metrics
@@ -34,6 +34,7 @@ from visualization import (
     configure_cjk_font,
     plot_report_slice,
     plot_slice_grid,
+    plot_field_residual_grid,
 )
 from visualization.report_style import _draw_holes, _style_slice_ax
 
@@ -369,16 +370,17 @@ def main() -> None:
         cbar_label=r"波阻抗 (×$10^6$ kg/(m$^2\cdot$s))",
         holes_xy=holes_all, scale=1e6,
     )
-    plot_slice_grid(
+    plot_field_residual_grid(
+        ds_all.ucs_true,
         [
-            (ds_all.ucs_true, "(a) 强度真值", holes_all),
-            (res_all.S_M, "(b) 仅钻孔插值", holes_all),
-            (res_all.S_Z, "(c) 仅波阻抗标定", holes_all),
-            (res_all.S_F, "(d) 不确定度加权融合", holes_all),
+            (res_all.S_M, "(b) 仅钻孔插值", "(e) 仅钻孔 $-$ 真值"),
+            (res_all.S_Z, "(c) 仅波阻抗标定", "(f) 仅波阻抗 $-$ 真值"),
+            (res_all.S_F, "(d) 不确定度加权融合", "(g) 融合 $-$ 真值"),
         ],
         ds_all.gx, ds_all.gy, zi,
         os.path.join(args.outdir, "fusion_advantage.png"),
-        cbar_label="UCS (MPa)", vmin=vmin, vmax=vmax, ncols=4,
+        vmin=vmin, vmax=vmax, holes_xy=holes_all,
+        true_title="(a) 强度真值",
         suptitle=f"融合优势对比（{elev:.0f} m 标高，{args.n_holes} 口钻孔，50×80 m）",
     )
     plot_along_holes(
