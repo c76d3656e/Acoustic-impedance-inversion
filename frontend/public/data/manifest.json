@@ -161,8 +161,8 @@
       "file": "fields/fused_strength.bin",
       "scale": 1.0,
       "default_cmap": "viridis",
-      "min": 18.099370825568855,
-      "max": 85.32765344829036
+      "min": 11.434875536467707,
+      "max": 92.80161444294993
     },
     {
       "key": "uncertainty",
@@ -171,8 +171,8 @@
       "file": "fields/uncertainty.bin",
       "scale": 1.0,
       "default_cmap": "magma",
-      "min": 6.242401039739522e-07,
-      "max": 8.323298841737715
+      "min": 0.0,
+      "max": 7.390804484137684
     },
     {
       "key": "ground_truth",
