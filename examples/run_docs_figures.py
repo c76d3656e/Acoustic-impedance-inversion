@@ -283,10 +283,16 @@ def plot_along_holes(ds, res, outfile, n_show: int = 2):
 
 
 def plot_mwd_weight(ds, res, z_index, outfile):
-    """Where fusion actually listens to MWD (high only next to holes)."""
+    """Where fusion actually listens to MWD (high at holes after anchoring)."""
     tau_m = 1.0 / (res.var_M + 1e-12)
     tau_z = 1.0 / (res.var_Z + 1e-12)
-    w_m = tau_m / (tau_m + tau_z)
+    w_prec = tau_m / (tau_m + tau_z)
+    w_xy = getattr(res, "w_anchor", None)
+    if w_xy is None:
+        w_m = w_prec
+    else:
+        w_a = np.asarray(w_xy, dtype=float)[:, :, np.newaxis]
+        w_m = w_a + (1.0 - w_a) * w_prec
     elev = float(ds.gz[z_index])
     plot_report_slice(
         w_m, ds.gx, ds.gy, z_index, outfile,

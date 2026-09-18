@@ -13,9 +13,9 @@ def test_fusion_pipeline_shapes():
     assert isinstance(res, FusionResult)
     for arr in (res.ai_inv, res.S_M, res.var_M, res.S_Z, res.var_Z, res.S_F, res.var_F):
         assert arr.shape == ds.ucs_true.shape
-    # Fused variance never exceeds either source.
+    # Precision fusion never exceeds either source.  After borehole anchoring,
+    # var_F may exceed var_Z next to holes (the MWD branch is kept on purpose).
     assert np.all(res.var_F <= res.var_M + 1e-6)
-    assert np.all(res.var_F <= res.var_Z + 1e-6)
 
 
 def test_report_slice_writes_png(tmp_path):

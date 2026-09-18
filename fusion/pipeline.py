@@ -14,7 +14,12 @@ from mwd import mwd_features, PhysicsGuidedGPR
 from geostats import regression_kriging_3d
 from inversion import ricker, synthetic_seismic_volume, invert_volume, background_model
 from .calibration import ImpedanceStrengthCalibrator
-from .uncertainty_fusion import precision_weighted_fusion, simple_weighted_fusion
+from .uncertainty_fusion import (
+    precision_weighted_fusion,
+    simple_weighted_fusion,
+    borehole_anchor_weight,
+    anchor_borehole_hard_data,
+)
 
 
 @dataclass
@@ -28,6 +33,7 @@ class FusionResult:
     S_F: np.ndarray          # uncertainty-aware fused strength
     var_F: np.ndarray
     ucs_pts_std_mean: float
+    w_anchor: np.ndarray     # (nx, ny) borehole hard-data weight, 1 at collars
 
 
 def run_fusion_pipeline(ds, noise: float = 0.05, lam: float = 5.0,
@@ -53,7 +59,11 @@ def run_fusion_pipeline(ds, noise: float = 0.05, lam: float = 5.0,
     S_M, var_krige = regression_kriging_3d(
         ds.hole_xyz, ucs_pts, zt_pts, ds.gx, ds.gy, ds.gz, zt_grid,
     )
-    var_M = var_krige + float(np.mean(ucs_pts_std**2))
+    # Hole voxels are hard data: keep the borehole estimate, do not let
+    # kriging / nugget smear it before fusion.
+    S_M = np.array(S_M, copy=True, dtype=float)
+    S_M[ds.hole_ix, ds.hole_iy, ds.hole_iz] = ucs_pts
+    var_M = np.maximum(np.asarray(var_krige, dtype=float), 0.0)
 
     # --- Seismic branch ---
     if ai_inv is None:
@@ -73,11 +83,17 @@ def run_fusion_pipeline(ds, noise: float = 0.05, lam: float = 5.0,
     var_Z = sigma_Z**2
 
     # --- Fusion ---
+    # Inverse-variance mix is for the *interpolated* field (away from holes).
+    # Re-inject the borehole branch with a compact XY kernel so hard data at
+    # the traces are not cancelled by impedance.
     S_weighted = simple_weighted_fusion(S_M, S_Z, w=0.5)
-    S_F, var_F = precision_weighted_fusion(S_M, var_M, S_Z, var_Z)
+    S_prec, var_prec = precision_weighted_fusion(S_M, var_M, S_Z, var_Z)
+    w_anchor = borehole_anchor_weight(ds.gx, ds.gy, ds.hole_xyz[:, :2])
+    S_F, var_F = anchor_borehole_hard_data(S_M, S_prec, var_M, var_prec, w_anchor)
 
     return FusionResult(
         ai_inv=ai_inv, S_M=S_M, var_M=var_M, S_Z=S_Z, var_Z=var_Z,
         S_weighted=S_weighted, S_F=S_F, var_F=var_F,
         ucs_pts_std_mean=float(np.mean(ucs_pts_std)),
+        w_anchor=w_anchor,
     )

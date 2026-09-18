@@ -35,6 +35,38 @@ def test_simple_weighted_fusion():
     assert np.isclose(simple_weighted_fusion(10.0, 20.0, w=0.25), 17.5)
 
 
+def test_borehole_anchor_weight_is_one_at_holes_zero_far_away():
+    from fusion import borehole_anchor_weight
+
+    gx = np.linspace(0.0, 50.0, 26)
+    gy = np.linspace(0.0, 80.0, 41)
+    holes = np.array([[25.0, 40.0], [10.0, 20.0]])
+    w = borehole_anchor_weight(gx, gy, holes, radius=8.0)
+    i = int(np.argmin(np.abs(gx - 25.0)))
+    j = int(np.argmin(np.abs(gy - 40.0)))
+    assert w[i, j] > 0.95
+    # Far from both collars.
+    i0 = int(np.argmin(np.abs(gx - 48.0)))
+    j0 = int(np.argmin(np.abs(gy - 78.0)))
+    assert w[i0, j0] < 0.05
+
+
+def test_fusion_does_not_cancel_borehole_hard_data():
+    """Near holes, fused strength must stay with the MWD branch, not seismic."""
+    from datasets import generate_mine
+    from fusion import run_fusion_pipeline
+
+    ds = generate_mine(shape=(16, 20, 32), n_holes=6, seed=3)
+    res = run_fusion_pipeline(ds, seed=3)
+    sm = res.S_M[ds.hole_ix, ds.hole_iy, ds.hole_iz]
+    sf = res.S_F[ds.hole_ix, ds.hole_iy, ds.hole_iz]
+    sz = res.S_Z[ds.hole_ix, ds.hole_iy, ds.hole_iz]
+    # Hole voxels: fusion ≈ MWD, not pulled halfway to impedance.
+    assert np.mean(np.abs(sf - sm)) < 0.2 * np.mean(np.abs(sz - sm) + 1e-6)
+    assert res.w_anchor.shape == (ds.gx.size, ds.gy.size)
+    assert float(res.w_anchor.max()) > 0.9
+
+
 def test_impedance_calibration_monotonic():
     rng = np.random.default_rng(2)
     ai = np.linspace(4e6, 1.1e7, 60)
