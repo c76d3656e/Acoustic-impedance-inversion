@@ -39,12 +39,13 @@ export const PRESETS: Colormap[] = [
     [0.0, "#000080"], [0.125, "#0000ff"], [0.375, "#00ffff"],
     [0.625, "#ffff00"], [0.875, "#ff0000"], [1.0, "#800000"],
   ]),
-  // matplotlib RdBu_r: blue = underestimate, red = overestimate
-  mk("rdbu", "RdBu（残差）", [
-    [0.0, "#053061"], [0.25, "#4393c3"], [0.5, "#f7f7f7"],
-    [0.75, "#d6604d"], [1.0, "#67001f"],
-  ]),
 ];
+
+/** matplotlib RdBu_r: blue = underestimate, red = overestimate (compare view). */
+export const RDBU: Colormap = mk("rdbu", "RdBu（残差）", [
+  [0.0, "#053061"], [0.25, "#4393c3"], [0.5, "#f7f7f7"],
+  [0.75, "#d6604d"], [1.0, "#67001f"],
+]);
 
 export const DEFAULT_CUSTOM: Colormap = mk("custom", "自定义", [
   [0.0, "#1b2a6b"], [0.5, "#2ca25f"], [1.0, "#f7fcb9"],

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import clsx from "clsx";
 import { useStore } from "../store";
-import { PRESETS, buildLUT } from "../viz/colormaps";
+import { PRESETS, RDBU, buildLUT } from "../viz/colormaps";
 import { drawScaled, extractSlice, sliceToImageData } from "../viz/slice";
 import type { Slice2D } from "../viz/slice";
 import { DEFAULT_COMPARE_KEYS } from "../types";
@@ -152,7 +152,7 @@ export default function CompareView2D() {
   }, [ensureFields, keys]);
 
   const viridis = useMemo(() => buildLUT(PRESETS.find((p) => p.key === "viridis")!), []);
-  const rdbu = useMemo(() => buildLUT(PRESETS.find((p) => p.key === "rdbu")!), []);
+  const rdbu = useMemo(() => buildLUT(RDBU), []);
 
   const slices = useMemo(() => {
     if (!manifest) return null;
