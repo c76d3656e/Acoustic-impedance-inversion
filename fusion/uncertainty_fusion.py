@@ -1,13 +1,17 @@
-"""Uncertainty-aware fusion of two strength fields.
+"""Well + seismic strength fusion.
 
-Treating each source as a Gaussian estimate ``N(mu, sigma^2)``, the
-precision-weighted (inverse-variance) combination is the maximum-likelihood
-fusion for independent estimates:
+Industry practice (Xu et al. SPE 24742; Doyen et al. SPE 36498) treats sparse
+borehole UCS as the *primary* variable and the dense seismic field as a
+*secondary* / collocated constraint.  That exact-honors wells when the primary
+kriging variance vanishes, and does not assume the two maps are independent.
 
-    mu_f    = (mu_M/sigma_M^2 + mu_Z/sigma_Z^2) / (1/sigma_M^2 + 1/sigma_Z^2)
-    sigma_f^2 = 1 / (1/sigma_M^2 + 1/sigma_Z^2)
+``doyen_collocated_update`` is the Bayesian form of collocated cokriging:
+it updates a primary kriging estimate with a collocated secondary using only
+the kriging variance and a correlation coefficient.
 
-The locally more reliable source (smaller sigma) automatically dominates.
+``precision_weighted_fusion`` is kept as an independent-source baseline; it
+can cancel hard data when ``S_M`` and ``S_Z`` are correlated, which is why
+the pipeline no longer uses it as ``S_F``.
 """
 
 from __future__ import annotations
@@ -15,8 +19,69 @@ from __future__ import annotations
 import numpy as np
 
 
+def doyen_collocated_update(
+    mu_k,
+    var_k,
+    secondary,
+    rho: float,
+    mean_primary: float | None = None,
+    std_primary: float | None = None,
+    mean_secondary: float | None = None,
+    std_secondary: float | None = None,
+    eps: float = 1e-12,
+):
+    """Bayesian collocated cokriging update (Doyen, SPE 36498).
+
+    Primary kriging ``N(mu_k, var_k)`` is updated with a collocated secondary
+    field.  In standardized units (Deutsch / Doyen):
+
+        y_k' = (mu_k - m_y) / σ_y ,   y_s' = (z - m_z) / σ_z
+        σ_k'² = clip(var_k / σ_y², 0, 1)
+        λ = ρ σ_k'² / (ρ² σ_k'² + 1 - ρ²)
+        y_cc' = y_k' + λ (y_s' - ρ y_k')
+        σ_cc'² = σ_k'² (1 - ρ²) / (ρ² σ_k'² + 1 - ρ²)
+
+    At hard-data nodes ``var_k → 0`` so ``λ → 0`` and ``y_cc → mu_k``.  Far
+    from wells ``σ_k'² → 1`` and the estimate shrinks toward the linear
+    regression of the secondary.
+
+    Returns ``(mu_cc, var_cc)`` in the original primary units, plus the
+    primary weight ``w = 1 - λ ρ`` (1 at wells).
+    """
+    mu_k = np.asarray(mu_k, dtype=float)
+    var_k = np.maximum(np.asarray(var_k, dtype=float), 0.0)
+    z = np.asarray(secondary, dtype=float)
+    if mu_k.shape != z.shape or var_k.shape != mu_k.shape:
+        raise ValueError("mu_k, var_k and secondary must share the same shape")
+
+    rho = float(np.clip(rho, -0.999, 0.999))
+    m_y = float(np.mean(mu_k) if mean_primary is None else mean_primary)
+    s_y = float(np.std(mu_k) if std_primary is None else std_primary)
+    m_z = float(np.mean(z) if mean_secondary is None else mean_secondary)
+    s_z = float(np.std(z) if std_secondary is None else std_secondary)
+    s_y = max(s_y, eps)
+    s_z = max(s_z, eps)
+
+    yk = (mu_k - m_y) / s_y
+    ys = (z - m_z) / s_z
+    sk2 = np.clip(var_k / (s_y * s_y), 0.0, 1.0)
+    one_minus = 1.0 - rho * rho
+    denom = rho * rho * sk2 + one_minus + eps
+    lam = rho * sk2 / denom
+    ycc = yk + lam * (ys - rho * yk)
+    var_s = sk2 * one_minus / denom
+    mu_cc = ycc * s_y + m_y
+    var_cc = var_s * (s_y * s_y)
+    w_primary = 1.0 - lam * rho
+    return mu_cc, var_cc, w_primary
+
+
 def precision_weighted_fusion(mu_M, var_M, mu_Z, var_Z, eps: float = 1e-12):
-    """Inverse-variance fusion. Returns ``(mu_f, var_f)`` (same shape)."""
+    """Inverse-variance fusion. Returns ``(mu_f, var_f)`` (same shape).
+
+    Assumes independent sources.  Prefer :func:`doyen_collocated_update` when
+    the maps share calibration wells.
+    """
     mu_M = np.asarray(mu_M, dtype=float)
     var_M = np.asarray(var_M, dtype=float)
     mu_Z = np.asarray(mu_Z, dtype=float)

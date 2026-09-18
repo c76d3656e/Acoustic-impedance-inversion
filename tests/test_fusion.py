@@ -3,6 +3,7 @@ import numpy as np
 from fusion import (
     precision_weighted_fusion,
     simple_weighted_fusion,
+    doyen_collocated_update,
     ImpedanceStrengthCalibrator,
 )
 
@@ -35,6 +36,38 @@ def test_simple_weighted_fusion():
     assert np.isclose(simple_weighted_fusion(10.0, 20.0, w=0.25), 17.5)
 
 
+def test_doyen_zero_variance_honors_primary():
+    mu_k = np.array([10.0, 30.0])
+    var_k = np.array([0.0, 0.0])
+    z = np.array([100.0, -50.0])
+    mu, var, w = doyen_collocated_update(
+        mu_k, var_k, z, rho=0.8,
+        mean_primary=20.0, std_primary=10.0,
+        mean_secondary=20.0, std_secondary=10.0,
+    )
+    assert np.allclose(mu, mu_k, atol=1e-9)
+    assert np.all(var < 1e-9)
+    assert np.all(w > 0.99)
+
+
+def test_doyen_far_field_is_linear_regression():
+    """When kriging variance = sill, the update is ρ toward the secondary."""
+    m_y, s_y = 50.0, 10.0
+    mu_k = np.array([m_y, m_y])
+    var_k = np.array([s_y ** 2, s_y ** 2])
+    z = np.array([70.0, 30.0])
+    rho = 0.8
+    mu, var, w = doyen_collocated_update(
+        mu_k, var_k, z, rho=rho,
+        mean_primary=m_y, std_primary=s_y,
+        mean_secondary=m_y, std_secondary=s_y,
+    )
+    expected = m_y + rho * (z - m_y)
+    assert np.allclose(mu, expected, atol=1e-6)
+    assert np.allclose(var, np.full(2, (1.0 - rho ** 2) * s_y ** 2), atol=1e-6)
+    assert np.allclose(w, 1.0 - rho ** 2, atol=1e-6)
+
+
 def test_borehole_anchor_weight_is_one_at_holes_zero_far_away():
     from fusion import borehole_anchor_weight
 
@@ -65,6 +98,11 @@ def test_fusion_does_not_cancel_borehole_hard_data():
     assert np.mean(np.abs(sf - sm)) < 0.2 * np.mean(np.abs(sz - sm) + 1e-6)
     assert res.w_anchor.shape == (ds.gx.size, ds.gy.size)
     assert float(res.w_anchor.max()) > 0.9
+    assert abs(res.rho) <= 1.0
+    # Volume fusion should improve on well-only kriging when several collars
+    # constrain the collocated secondary.
+    from validation import summary
+    assert summary(ds.ucs_true, res.S_F)["RMSE"] <= summary(ds.ucs_true, res.S_M)["RMSE"] + 1e-6
 
 
 def test_impedance_calibration_monotonic():

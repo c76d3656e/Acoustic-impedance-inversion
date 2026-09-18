@@ -13,8 +13,7 @@ def test_fusion_pipeline_shapes():
     assert isinstance(res, FusionResult)
     for arr in (res.ai_inv, res.S_M, res.var_M, res.S_Z, res.var_Z, res.S_F, res.var_F):
         assert arr.shape == ds.ucs_true.shape
-    # Precision fusion never exceeds either source.  After borehole anchoring,
-    # var_F may exceed var_Z next to holes (the MWD branch is kept on purpose).
+    # Doyen update never inflates the primary kriging variance.
     assert np.all(res.var_F <= res.var_M + 1e-6)
 
 

@@ -73,7 +73,7 @@ def plot_metrics_curves(rows, outfile, far_radius: float = 12.0):
 
     axes[0].plot(n, [r["mwd_rmse"] for r in rows], "o-", label="仅钻孔克里金插值")
     axes[0].plot(n, [r["seis_rmse"] for r in rows], "s--", label="仅波阻抗标定")
-    axes[0].plot(n, [r["fused_rmse"] for r in rows], "D-", label="不确定度加权融合")
+    axes[0].plot(n, [r["fused_rmse"] for r in rows], "D-", label="协克里金融合")
     if np.isfinite(rows[0].get("mwd_far_rmse", np.nan)):
         axes[0].plot(n, [r["mwd_far_rmse"] for r in rows], "o:", color="C0",
                      alpha=0.7, label=f"仅钻孔（距孔 > {far_radius:.0f} m）")
@@ -91,7 +91,7 @@ def plot_metrics_curves(rows, outfile, far_radius: float = 12.0):
 
     axes[1].plot(n, [r["mwd_r2"] for r in rows], "o-", label="仅钻孔克里金插值")
     axes[1].plot(n, [r["seis_r2"] for r in rows], "s--", label="仅波阻抗标定")
-    axes[1].plot(n, [r["fused_r2"] for r in rows], "D-", label="不确定度加权融合")
+    axes[1].plot(n, [r["fused_r2"] for r in rows], "D-", label="协克里金融合")
     axes[1].set_xlabel("钻孔数量")
     axes[1].set_ylabel("$R^2$")
     axes[1].set_title("与真值的决定系数随钻孔数变化")
@@ -268,7 +268,7 @@ def plot_along_holes(ds, res, outfile, n_show: int = 2):
         ax.plot(true, z, "k-", lw=2.0, label="真值 UCS")
         ax.plot(sz, z, "--", color="C1", lw=1.8, label="仅波阻抗标定")
         ax.plot(sm, z, ":", color="C0", lw=1.8, label="MWD（孔点）")
-        ax.plot(sf, z, "-", color="C2", lw=2.0, label="不确定度加权融合")
+        ax.plot(sf, z, "-", color="C2", lw=2.0, label="协克里金融合")
         ax.set_xlabel("UCS (MPa)")
         ax.set_title(titles[k] if k < len(titles) else f"钻孔 {k+1}")
         ax.grid(True, alpha=0.3)
@@ -283,16 +283,16 @@ def plot_along_holes(ds, res, outfile, n_show: int = 2):
 
 
 def plot_mwd_weight(ds, res, z_index, outfile):
-    """Where fusion actually listens to MWD (high at holes after anchoring)."""
-    tau_m = 1.0 / (res.var_M + 1e-12)
-    tau_z = 1.0 / (res.var_Z + 1e-12)
-    w_prec = tau_m / (tau_m + tau_z)
+    """Where fusion actually listens to boreholes (Doyen/KED primary weight)."""
     w_xy = getattr(res, "w_anchor", None)
     if w_xy is None:
-        w_m = w_prec
+        tau_m = 1.0 / (res.var_M + 1e-12)
+        tau_z = 1.0 / (res.var_Z + 1e-12)
+        w_m = tau_m / (tau_m + tau_z)
     else:
-        w_a = np.asarray(w_xy, dtype=float)[:, :, np.newaxis]
-        w_m = w_a + (1.0 - w_a) * w_prec
+        w_m = np.broadcast_to(
+            np.asarray(w_xy, dtype=float)[:, :, np.newaxis], res.S_F.shape,
+        ).copy()
     elev = float(ds.gz[z_index])
     plot_report_slice(
         w_m, ds.gx, ds.gy, z_index, outfile,
@@ -366,7 +366,7 @@ def main() -> None:
     plot_report_slice(
         res_all.S_F, ds_all.gx, ds_all.gy, zi,
         os.path.join(args.outdir, "fused_strength.png"),
-        title=f"{elev:.0f} m 标高不确定度加权融合强度场 (MPa)",
+        title=f"{elev:.0f} m 标高协克里金融合强度场 (MPa)",
         cbar_label="UCS (MPa)", holes_xy=holes_all, vmin=vmin, vmax=vmax,
     )
     plot_report_slice(
@@ -381,7 +381,7 @@ def main() -> None:
         [
             (res_all.S_M, "(b) 仅钻孔插值", "(e) 仅钻孔 $-$ 真值"),
             (res_all.S_Z, "(c) 仅波阻抗标定", "(f) 仅波阻抗 $-$ 真值"),
-            (res_all.S_F, "(d) 不确定度加权融合", "(g) 融合 $-$ 真值"),
+            (res_all.S_F, "(d) 协克里金融合", "(g) 融合 $-$ 真值"),
         ],
         ds_all.gx, ds_all.gy, zi,
         os.path.join(args.outdir, "fusion_advantage.png"),
@@ -515,7 +515,7 @@ def main() -> None:
         vmin=0.0,
         vmax=float(np.percentile(np.sqrt(res_all.var_M[:, :, zi]), 98)),
         cmap="magma", ncols=4,
-        suptitle="钻孔稀疏处克里金方差大，融合自动改信连续波阻抗场",
+        suptitle="钻孔稀疏处克里金方差大，协克里金改信连续波阻抗场",
     )
 
     with open(os.path.join(args.outdir, "full_hole_metrics.json"), "w",
