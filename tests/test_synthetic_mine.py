@@ -66,6 +66,11 @@ def test_plum_blossom_is_spread_not_clustered():
     xs, ys = ds.gx[pairs[:, 0]], ds.gy[pairs[:, 1]]
     assert xs.max() - xs.min() > 0.55 * (ds.gx[-1] - ds.gx[0])
     assert ys.max() - ys.min() > 0.55 * (ds.gy[-1] - ds.gy[0])
+    Lx = float(ds.gx[-1] - ds.gx[0])
+    Ly = float(ds.gy[-1] - ds.gy[0])
+    # Interior: leave the free-face strip empty (not parked on the edges).
+    assert xs.min() > 0.10 * Lx and xs.max() < 0.90 * Lx
+    assert ys.min() > 0.10 * Ly and ys.max() < 0.90 * Ly
     dmin = np.inf
     for a in range(12):
         for b in range(a + 1, 12):

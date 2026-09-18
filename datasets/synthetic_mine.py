@@ -101,31 +101,53 @@ def plum_blossom_hole_indices(
     """Approximate triangular / 梅花 blast-hole lattice, snapped to the grid.
 
     Adjacent rows are shifted by half a hole spacing (equilateral-triangle
-    packing, not a rectangular grid).  If snapping collapses a few sites, the
-    remainder is filled by farthest-point sampling so coverage stays uniform.
-    The returned order is itself farthest-point from the block centre, so every
-    nested prefix is still spread.
+    packing, not a rectangular grid).  The lattice is inset from the free face
+    by about half a hole-spacing so wells sit *inside* the block, not on the
+    edges.  If snapping collapses a few sites, the remainder is filled by
+    farthest-point sampling inside that inset.  The returned order is itself
+    farthest-point from the block centre, so every nested prefix is still spread.
     """
     if n_holes < 1:
         raise ValueError("n_holes must be >= 1")
     nx, ny = len(gx), len(gy)
     if nx < 3 or ny < 3:
         raise ValueError("grid too small for interior holes")
-    x0, x1 = float(gx[1]), float(gx[-2])
-    y0, y1 = float(gy[1]), float(gy[-2])
+    Lx = float(gx[-1] - gx[0])
+    Ly = float(gy[-1] - gy[0])
+    dxg = abs(float(gx[1] - gx[0])) if nx > 1 else 1.0
+    dyg = abs(float(gy[1] - gy[0])) if ny > 1 else 1.0
+    a0 = float(np.sqrt((max(Lx, 1e-6) * max(Ly, 1e-6) / float(n_holes)) * 2.0 / np.sqrt(3.0)))
+    # ~½ hole-spacing off each free face; cap so the interior stays usable.
+    mx = min(max(0.50 * a0, 2.0 * dxg), 0.22 * Lx)
+    my = min(max(0.50 * a0, 2.0 * dyg), 0.22 * Ly)
+    x0 = float(gx[0]) + mx
+    x1 = float(gx[-1]) - mx
+    y0 = float(gy[0]) + my
+    y1 = float(gy[-1]) - my
+    if x1 <= x0 or y1 <= y0:
+        raise ValueError("grid too small for interior holes")
     lx = max(x1 - x0, 1e-6)
     ly = max(y1 - y0, 1e-6)
     cx, cy = 0.5 * (x0 + x1), 0.5 * (y0 + y1)
 
+    ix_lo = int(np.clip(np.argmin(np.abs(gx - x0)), 1, nx - 2))
+    ix_hi = int(np.clip(np.argmin(np.abs(gx - x1)), 1, nx - 2))
+    iy_lo = int(np.clip(np.argmin(np.abs(gy - y0)), 1, ny - 2))
+    iy_hi = int(np.clip(np.argmin(np.abs(gy - y1)), 1, ny - 2))
+    if ix_hi < ix_lo:
+        ix_lo, ix_hi = ix_hi, ix_lo
+    if iy_hi < iy_lo:
+        iy_lo, iy_hi = iy_hi, iy_lo
+
     def _snap(x: float, y: float) -> tuple[int, int]:
-        ix = int(np.clip(np.argmin(np.abs(gx - x)), 1, nx - 2))
-        iy = int(np.clip(np.argmin(np.abs(gy - y)), 1, ny - 2))
+        ix = int(np.clip(np.argmin(np.abs(gx - x)), ix_lo, ix_hi))
+        iy = int(np.clip(np.argmin(np.abs(gy - y)), iy_lo, iy_hi))
         return ix, iy
 
     if n_holes == 1:
         return [_snap(cx, cy)]
 
-    # Hexagonal packing: area per hole ≈ a² √3 / 2.
+    # Hexagonal packing inside the inset: area per hole ≈ a² √3 / 2.
     a = float(np.sqrt((lx * ly / float(n_holes)) * 2.0 / np.sqrt(3.0)))
     a = max(a, 1e-6)
 
@@ -171,8 +193,8 @@ def plum_blossom_hole_indices(
     if len(pts) < n_holes:
         pool = [
             (i, j)
-            for i in range(1, nx - 1)
-            for j in range(1, ny - 1)
+            for i in range(ix_lo, ix_hi + 1)
+            for j in range(iy_lo, iy_hi + 1)
             if (i, j) not in seen
         ]
         while len(pts) < n_holes and pool:
