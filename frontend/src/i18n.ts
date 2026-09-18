@@ -5,6 +5,7 @@ export const t = {
   subtitle: "无后端 · 纯前端 · 本地计算（WebGL2 + Pyodide/matplotlib）",
   loading: "正在加载数据集…",
   loadingPyodide: "正在加载 Pyodide 与 matplotlib（首次较慢，约 10–30 秒）…",
+  loadingCompare: "正在加载对比场…",
 
   panelField: "数据场",
   panelSlice: "切片控制",
@@ -29,6 +30,7 @@ export const t = {
 
   view2d: "二维切片",
   view3d: "三维视图",
+  viewCompare: "融合对比",
   showBoreholes: "显示钻孔",
   volumeOpacity: "体透明度",
   sectionTool: "剖切工具",
@@ -37,11 +39,17 @@ export const t = {
   sectionPos: "剖切位置",
   sectionReverse: "反向剖切",
 
+  exportKind: "出图类型",
+  exportKindSlice: "当前切片",
+  exportKindCompare: "融合对比",
+  exportKindProfile: "沿孔剖面",
   exportButton: "生成出版级图片（Nature 风格）",
   exporting: "正在本地渲染…",
   download: "下载 PNG",
   natureStyle: "Nature 风格优化",
   exportHint: "根据当前所选数据场、切片位置与配色，在本地生成带中文标注的高分辨率图片。",
+  exportHintCompare: "与文档相同的 2×4 图：真值 / 仅钻孔 / 仅波阻抗 / 融合，下行预测减真值热力图。",
+  exportHintProfile: "沿孔剖面：真值、仅钻孔、仅波阻抗标定与外漂移克里金融合（孔上钉回硬数据）。",
 
   wellSelect: "选择钻孔",
   wellLogTitle: "沿孔测井曲线",
@@ -59,8 +67,16 @@ export const t = {
   curveN: "转速 N",
   curveM: "扭矩 M",
   curveF: "钻压 F",
-  curveUCSpred: "反演UCS",
+  curveUCSpred: "MWD",
   curveUCStrue: "真实UCS",
+  curveUCSseis: "波阻抗UCS",
+  curveUCSfused: "融合UCS",
+
+  residualNote: "下行：预测 − 真值\n红＝估计偏高\n蓝＝估计偏低\n越浅越好",
+  residualCbar: "预测 − 真值 (MPa)",
+  compareSuptitle: "融合优势对比",
+  profileSuptitle: "沿孔剖面：融合在孔上钉回硬数据；波阻抗只给出趋势",
+  clickPanel: "点击面板可切换到该场的二维切片",
 };
 
 export type I18nKey = keyof typeof t;

@@ -97,7 +97,7 @@ python3 examples/run_visualizations.py --outdir results/viz
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fc76d3656e%2FAcoustic-impedance-inversion&root-directory=frontend&project-name=mine-fusion-viz&repository-name=mine-fusion-viz)
 
-`frontend/` 是 Vite + React + TypeScript + WebGL2 应用，随仓库发布**固定数据集**，全部在浏览器中计算：可拖动 X/Y/Z 切片、半透明三维体 + 可移动剖面、多井测井曲线、自定义强度色标，以及 **Pyodide + matplotlib 在浏览器内出中文出版图**。部署是 100% 静态前端（Root Directory = `frontend`），无后端、无 serverless。
+`frontend/` 是 Vite + React + TypeScript + WebGL2 应用，随仓库发布**固定数据集**（KED 融合的 \(S_M,S_Z,S_F\) 与真值），全部在浏览器中计算：可切换各分支场、融合对比（含预测−真值热力图）、拖动 X/Y/Z 切片、半透明三维体 + 可移动剖面、多井测井曲线（真值 / MWD / 波阻抗 / 融合）、自定义强度色标，以及 **Pyodide + matplotlib 在浏览器内出中文出版图**（当前切片、融合优势 2×4、沿孔剖面）。部署是 100% 静态前端（Root Directory = `frontend`），无后端、无 serverless。
 
 ```bash
 python3 scripts/export_frontend_dataset.py   # 重新导出固定数据集（确定性）

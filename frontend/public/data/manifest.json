@@ -135,6 +135,46 @@
   "order": "c-xyz",
   "fields": [
     {
+      "key": "fused_strength",
+      "name_zh": "外漂移克里金融合强度场",
+      "unit": "MPa",
+      "file": "fields/fused_strength.bin",
+      "scale": 1.0,
+      "default_cmap": "viridis",
+      "min": 11.434875536467707,
+      "max": 92.80161444294993
+    },
+    {
+      "key": "mwd_strength",
+      "name_zh": "仅钻孔克里金强度场",
+      "unit": "MPa",
+      "file": "fields/mwd_strength.bin",
+      "scale": 1.0,
+      "default_cmap": "viridis",
+      "min": 18.644990052596913,
+      "max": 83.32894794339867
+    },
+    {
+      "key": "seismic_strength",
+      "name_zh": "波阻抗标定强度场",
+      "unit": "MPa",
+      "file": "fields/seismic_strength.bin",
+      "scale": 1.0,
+      "default_cmap": "viridis",
+      "min": 22.446088330750428,
+      "max": 91.09114483613538
+    },
+    {
+      "key": "ground_truth",
+      "name_zh": "真实强度场",
+      "unit": "MPa",
+      "file": "fields/ground_truth.bin",
+      "scale": 1.0,
+      "default_cmap": "viridis",
+      "min": 23.0,
+      "max": 93.02926166561649
+    },
+    {
       "key": "impedance",
       "name_zh": "波阻抗反演场",
       "unit": "×10⁶ kg/(m²·s)",
@@ -143,26 +183,6 @@
       "default_cmap": "viridis",
       "min": 4368526.345313856,
       "max": 9267710.689512078
-    },
-    {
-      "key": "mwd_strength",
-      "name_zh": "MWD 岩石强度场",
-      "unit": "MPa",
-      "file": "fields/mwd_strength.bin",
-      "scale": 1.0,
-      "default_cmap": "viridis",
-      "min": 19.370601220452265,
-      "max": 83.32894794339872
-    },
-    {
-      "key": "fused_strength",
-      "name_zh": "融合强度场",
-      "unit": "MPa",
-      "file": "fields/fused_strength.bin",
-      "scale": 1.0,
-      "default_cmap": "viridis",
-      "min": 11.434875536467707,
-      "max": 92.80161444294993
     },
     {
       "key": "uncertainty",
@@ -175,17 +195,39 @@
       "max": 7.390804484137684
     },
     {
-      "key": "ground_truth",
-      "name_zh": "真实强度场",
-      "unit": "MPa",
-      "file": "fields/ground_truth.bin",
+      "key": "fusion_weight",
+      "name_zh": "钻孔权重",
+      "unit": "—",
+      "file": "fields/fusion_weight.bin",
       "scale": 1.0,
-      "default_cmap": "viridis",
-      "min": 23.0,
-      "max": 93.02926166561649
+      "default_cmap": "magma",
+      "min": 0.0,
+      "max": 1.0
     }
   ],
   "boreholes_file": "boreholes.json",
   "n_holes": 12,
-  "seed": 42
+  "seed": 42,
+  "fusion": "ked",
+  "default_field": "fused_strength",
+  "compare": {
+    "keys": [
+      "ground_truth",
+      "mwd_strength",
+      "seismic_strength",
+      "fused_strength"
+    ],
+    "titles_zh": [
+      "(a) 强度真值",
+      "(b) 仅钻孔插值",
+      "(c) 仅波阻抗标定",
+      "(d) 外漂移克里金融合"
+    ],
+    "residual_titles_zh": [
+      "",
+      "(e) 仅钻孔 − 真值",
+      "(f) 仅波阻抗 − 真值",
+      "(g) 融合 − 真值"
+    ]
+  }
 }

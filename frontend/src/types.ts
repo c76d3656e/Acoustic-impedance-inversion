@@ -9,6 +9,12 @@ export interface FieldMeta {
   max: number;
 }
 
+export interface CompareSpec {
+  keys: string[];
+  titles_zh: string[];
+  residual_titles_zh: string[];
+}
+
 export interface Manifest {
   title_zh: string;
   grid: { nx: number; ny: number; nz: number };
@@ -19,6 +25,9 @@ export interface Manifest {
   boreholes_file: string;
   n_holes: number;
   seed: number;
+  fusion?: string;
+  default_field?: string;
+  compare?: CompareSpec;
 }
 
 export interface WellSample {
@@ -29,6 +38,9 @@ export interface WellSample {
   F: number;
   ucs_true: number;
   ucs_pred: number;
+  ucs_mwd?: number;
+  ucs_seis?: number;
+  ucs_fused?: number;
   ai: number;
 }
 
@@ -39,6 +51,8 @@ export interface Well {
   ix: number;
   iy: number;
   samples: WellSample[];
+  profile?: boolean;
+  title_zh?: string;
 }
 
 export interface FieldVolume {
@@ -48,9 +62,21 @@ export interface FieldVolume {
 
 export type SliceAxis = "x" | "y" | "z";
 
+export type ViewMode = "2d" | "3d" | "compare";
+
+export type ExportKind = "slice" | "compare" | "profile";
+
 /** A colormap defined by anchor stops; used identically in WebGL and matplotlib. */
 export interface Colormap {
   key: string;
   name_zh: string;
   stops: Array<{ pos: number; color: [number, number, number] }>; // 0..1, rgb 0..255
 }
+
+/** Default compare panel order if the manifest has no `compare` block. */
+export const DEFAULT_COMPARE_KEYS = [
+  "ground_truth",
+  "mwd_strength",
+  "seismic_strength",
+  "fused_strength",
+] as const;

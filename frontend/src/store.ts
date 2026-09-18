@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { Colormap, FieldVolume, Manifest, SliceAxis, Well } from "./types";
+import type { Colormap, FieldVolume, Manifest, SliceAxis, ViewMode, Well } from "./types";
+import { DEFAULT_COMPARE_KEYS } from "./types";
 import { loadField, loadManifest, loadWells } from "./data/loader";
 import { PRESETS, DEFAULT_CUSTOM } from "./viz/colormaps";
 
@@ -12,7 +13,7 @@ interface AppState {
   sliceIndex: Record<SliceAxis, number>;
   colormap: Colormap;
   reverse: boolean;
-  view: "2d" | "3d";
+  view: ViewMode;
   showBoreholes: boolean;
   volumeOpacity: number;
   sectionOn: boolean;
@@ -24,12 +25,13 @@ interface AppState {
   ready: boolean;
 
   init: () => Promise<void>;
+  ensureFields: (keys: string[]) => Promise<void>;
   setFieldKey: (k: string) => Promise<void>;
   setAxis: (a: SliceAxis) => void;
   setSliceIndex: (a: SliceAxis, v: number) => void;
   setColormap: (c: Colormap) => void;
   setReverse: (r: boolean) => void;
-  setView: (v: "2d" | "3d") => void;
+  setView: (v: ViewMode) => void;
   setShowBoreholes: (b: boolean) => void;
   setVolumeOpacity: (v: number) => void;
   setSectionOn: (b: boolean) => void;
@@ -40,13 +42,19 @@ interface AppState {
   currentField: () => FieldVolume | null;
 }
 
+function compareKeysOf(manifest: Manifest | null): string[] {
+  return manifest?.compare?.keys?.length
+    ? manifest.compare.keys
+    : [...DEFAULT_COMPARE_KEYS];
+}
+
 export const useStore = create<AppState>((set, get) => ({
   manifest: null,
   wells: [],
   fields: {},
-  fieldKey: "impedance",
+  fieldKey: "fused_strength",
   axis: "z",
-  sliceIndex: { x: 12, y: 10, z: 24 },
+  sliceIndex: { x: 12, y: 10, z: 20 },
   colormap: PRESETS[0],
   reverse: false,
   view: "2d",
@@ -64,25 +72,43 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       const manifest = await loadManifest();
       const wells = await loadWells(manifest);
-      const first = manifest.fields[0];
+      const preferred = manifest.default_field ?? "fused_strength";
+      const first =
+        manifest.fields.find((f) => f.key === preferred) ?? manifest.fields[0];
       const vol = await loadField(manifest, first.key);
+      const preset = PRESETS.find((p) => p.key === first.default_cmap) ?? PRESETS[0];
       const { nx, ny, nz } = manifest.grid;
       set({
         manifest,
         wells,
         fields: { [first.key]: vol },
         fieldKey: first.key,
+        colormap: preset,
         sliceIndex: {
           x: Math.floor(nx / 2),
           y: Math.floor(ny / 2),
           z: Math.floor(nz / 2),
         },
-        selectedWell: wells[0]?.id ?? null,
+        selectedWell: wells.find((w) => w.profile)?.id ?? wells[0]?.id ?? null,
         ready: true,
       });
+      // Preload comparison volumes so field/compare switches stay instant.
+      void get().ensureFields(compareKeysOf(manifest));
     } catch (e) {
       set({ error: (e as Error).message });
     }
+  },
+
+  ensureFields: async (keys) => {
+    const { manifest } = get();
+    if (!manifest) return;
+    const missing = keys.filter((k) => k && !get().fields[k]
+      && manifest.fields.some((f) => f.key === k));
+    if (!missing.length) return;
+    const loaded = await Promise.all(missing.map((k) => loadField(manifest, k)));
+    const next = { ...get().fields };
+    for (const vol of loaded) next[vol.meta.key] = vol;
+    set({ fields: next });
   },
 
   setFieldKey: async (k) => {
@@ -102,7 +128,12 @@ export const useStore = create<AppState>((set, get) => ({
     set({ sliceIndex: { ...get().sliceIndex, [a]: v } }),
   setColormap: (c) => set({ colormap: c }),
   setReverse: (r) => set({ reverse: r }),
-  setView: (v) => set({ view: v }),
+  setView: (v) => {
+    set({ view: v });
+    if (v === "compare") {
+      void get().ensureFields(compareKeysOf(get().manifest));
+    }
+  },
   setShowBoreholes: (b) => set({ showBoreholes: b }),
   setVolumeOpacity: (v) => set({ volumeOpacity: v }),
   setSectionOn: (b) => set({ sectionOn: b }),

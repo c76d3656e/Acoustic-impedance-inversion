@@ -4,6 +4,7 @@ import { useStore } from "./store";
 import { t } from "./i18n";
 import ControlPanel from "./components/ControlPanel";
 import SliceView2D from "./components/SliceView2D";
+import CompareView2D from "./components/CompareView2D";
 import WellPanel from "./components/WellPanel";
 import FigureExport from "./components/FigureExport";
 
@@ -64,7 +65,7 @@ export default function App() {
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={view}
-              className="stage-inner"
+              className={`stage-inner${view === "compare" ? " is-compare" : ""}`}
               initial={{ opacity: 0, scale: 0.99 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.99 }}
@@ -72,6 +73,8 @@ export default function App() {
             >
               {view === "2d" ? (
                 <SliceView2D />
+              ) : view === "compare" ? (
+                <CompareView2D />
               ) : (
                 <Suspense fallback={<div className="loading3d">{t.view3d}…</div>}>
                   <Volume3D />
