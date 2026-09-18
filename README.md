@@ -10,7 +10,7 @@
                                                               ╲
  三维地震 ─▶ 波阻抗反演 ─▶ AI→UCS 标定 ─▶ S_Z, σ_Z
                                                               ╱
-     共定位协克里金（Doyen 贝叶斯更新 / 外漂移克里金） ─▶ S_fused, σ_fused
+     共定位协克里金（Doyen 贝叶斯更新） ─▶ S_fused, σ_fused
                                               │
                           三维强度体 ─▶ 水平切片（如 z = −20 m）
 ```
@@ -23,7 +23,7 @@
 
 稀疏准的钻孔和全区连续的地震，是储层建模里同一类问题。Xu 等（SPE 24742）的做法是**外漂移克里金**（井为硬数据，地震为漂移）；Doyen 等（SPE 36498）把共定位协克里金写成对井克里金的贝叶斯更新——只需要克里金方差和井–地震相关系数 \(\rho\)，孔上 \(\sigma_M\to 0\) 时估计自动等于井，远处缩向地震回归。这与把 \(S_M\)、\(S_Z\) 当成独立观测做逆方差混合不同：两路共用同一批标定井，独立假设会把孔上真值冲掉。
 
-实现上：两口井及以上用 Doyen 更新（主变量 \(S_M\)，共定位次变量 \(S_Z\)，\(\rho=\mathrm{corr}(\mathrm{UCS},\mathrm{AI})\)）；单口井时 GP 标定会过拟合，改用波阻抗本身做外漂移克里金。孔轨迹体素始终写回 MWD 点估计。
+实现上：Doyen 更新以 \(S_M\) 为主变量、标定后的 \(S_Z\) 为共定位次变量，\(\rho=\mathrm{corr}(\mathrm{UCS},\mathrm{AI})\)（不用会被单井 GP 抬到 1 的 \(\mathrm{corr}(\mathrm{UCS},S_Z)\)）。孔轨迹体素始终写回 MWD 点估计。
 
 ## 项目结构
 
@@ -36,7 +36,7 @@
 │                    #   PyLops 叠后反演
 ├── preprocessing/   # SEG-Y (segyio)、LAS (lasio)、深度↔时间标定
 ├── geostats/        # 三维普通克里金与回归克里金（均值 + 方差）
-├── fusion/          # AI→UCS 标定（GP）+ 共定位协克里金（Doyen / KED）
+├── fusion/          # AI→UCS 标定（GP）+ 共定位协克里金（Doyen）
 ├── validation/      # R²、RMSE、MAE、盲井检验
 ├── visualization/   # 切片、剖面、融合面板、PyVista 三维
 ├── examples/        # 基准、可视化、文档出图脚本

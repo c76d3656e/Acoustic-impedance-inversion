@@ -8,7 +8,7 @@ r"""End-to-end MWD-Seismic physics-constrained strength-fusion benchmark.
    -> S_MWD, var_MWD              -> S_Z, var_Z
         \______________ fusion _______________/
                           |
-     collocated cokriging (Doyen Bayesian update / KED)
+     collocated cokriging (Doyen Bayesian update)
                           |
                   S_fused, sigma_fused   -> compare to UCS_true
 

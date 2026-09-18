@@ -283,7 +283,7 @@ def plot_along_holes(ds, res, outfile, n_show: int = 2):
 
 
 def plot_mwd_weight(ds, res, z_index, outfile):
-    """Where fusion actually listens to boreholes (Doyen/KED primary weight)."""
+    """Where fusion actually listens to boreholes (Doyen primary weight)."""
     w_xy = getattr(res, "w_anchor", None)
     if w_xy is None:
         tau_m = 1.0 / (res.var_M + 1e-12)
