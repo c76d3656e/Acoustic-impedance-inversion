@@ -10,11 +10,18 @@ from .synthetic import (
     layered_property_model,
     acoustic_impedance,
 )
-from .synthetic_mine import generate_mine, MineDataset
+from .synthetic_mine import (
+    generate_mine,
+    MineDataset,
+    unique_hole_xy_indices,
+    subset_holes,
+)
 
 __all__ = [
     "layered_property_model",
     "acoustic_impedance",
     "generate_mine",
     "MineDataset",
+    "unique_hole_xy_indices",
+    "subset_holes",
 ]

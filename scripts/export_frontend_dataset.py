@@ -104,7 +104,7 @@ def main() -> None:
             "ai": float(ai_pts[k]),
         })
     for w in wells.values():
-        w["samples"].sort(key=lambda s: -s["z"])  # top (0) -> bottom (-120)
+        w["samples"].sort(key=lambda s: -s["z"])  # top (0) -> bottom
 
     with open(os.path.join(args.outdir, "boreholes.json"), "w") as f:
         json.dump({"wells": list(wells.values())}, f, ensure_ascii=False, indent=2)

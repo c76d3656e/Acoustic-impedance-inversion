@@ -32,7 +32,14 @@ class FusionResult:
 
 def run_fusion_pipeline(ds, noise: float = 0.05, lam: float = 5.0,
                         freq: float = 30.0, dt: float = 0.002,
-                        seed: int = 42) -> FusionResult:
+                        seed: int = 42, ai_inv=None) -> FusionResult:
+    """Run MWD + seismic + fusion.
+
+    ``ai_inv`` may be a precomputed impedance volume (same shape as the mine).
+    When given, the seismic inversion is skipped so a well-count series can
+    reuse one impedance field while the MWD branch and the AI→UCS calibrator
+    see more holes.
+    """
     rng = np.random.default_rng(seed)
     nx, ny, nz = ds.ucs_true.shape
 
@@ -49,11 +56,16 @@ def run_fusion_pipeline(ds, noise: float = 0.05, lam: float = 5.0,
     var_M = var_krige + float(np.mean(ucs_pts_std**2))
 
     # --- Seismic branch ---
-    wavelet = ricker(n=31, dt=dt, freq=freq)
-    seismic = synthetic_seismic_volume(ds.ai_true, wavelet)
-    seismic = seismic + noise * np.std(seismic) * rng.standard_normal(seismic.shape)
-    background = background_model(ds.ai_true, sigma=(2, 2, 6))
-    ai_inv = invert_volume(seismic, wavelet, background, lam=lam)
+    if ai_inv is None:
+        wavelet = ricker(n=31, dt=dt, freq=freq)
+        seismic = synthetic_seismic_volume(ds.ai_true, wavelet)
+        seismic = seismic + noise * np.std(seismic) * rng.standard_normal(seismic.shape)
+        background = background_model(ds.ai_true, sigma=(2, 2, 6))
+        ai_inv = invert_volume(seismic, wavelet, background, lam=lam)
+    else:
+        ai_inv = np.asarray(ai_inv, dtype=float)
+        if ai_inv.shape != ds.ucs_true.shape:
+            raise ValueError("ai_inv shape must match the mine UCS volume")
 
     ai_at_holes = ai_inv[ds.hole_ix, ds.hole_iy, ds.hole_iz]
     calib = ImpedanceStrengthCalibrator().fit(ai_at_holes, ds.ucs_at_holes)

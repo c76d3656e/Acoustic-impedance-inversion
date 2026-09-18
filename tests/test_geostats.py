@@ -29,6 +29,18 @@ def test_ok_interpolates_at_data_node():
     assert abs(mean[1, 1, 1] - 15.0) < 2.0
 
 
+def test_ok_single_vertical_hole_finite():
+    # Collinear samples: auto variogram fit has no lateral lags.
+    z = np.linspace(0, 10, 8)
+    pts = np.column_stack([np.zeros(8), np.zeros(8), z])
+    vals = 10.0 + 0.5 * z
+    gx, gy, gz = make_grid(-2, 2, 5, -2, 2, 5, 0, 10, 6)
+    mean, var = ordinary_kriging_3d(pts, vals, gx, gy, gz, nlags=4)
+    assert mean.shape == (5, 5, 6)
+    assert np.all(np.isfinite(mean))
+    assert np.all(var > -1e-6)
+
+
 def test_regression_kriging_shapes():
     pts, vals = _points()
     gx, gy, gz = make_grid(0, 2, 3, 0, 2, 3, 0, 2, 3)
