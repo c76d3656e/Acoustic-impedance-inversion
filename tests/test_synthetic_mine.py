@@ -54,3 +54,34 @@ def test_subset_holes_is_nested_prefix():
         assert False, "expected ValueError"
     except ValueError:
         pass
+
+
+def test_plum_blossom_is_spread_not_clustered():
+    from datasets import plum_blossom_hole_indices, unique_hole_xy_indices, subset_holes
+
+    ds = generate_mine(n_holes=12, seed=42)
+    pairs = unique_hole_xy_indices(ds)
+    assert len(pairs) == 12
+    assert ds.meta.get("hole_layout") == "plum_blossom"
+    xs, ys = ds.gx[pairs[:, 0]], ds.gy[pairs[:, 1]]
+    assert xs.max() - xs.min() > 0.55 * (ds.gx[-1] - ds.gx[0])
+    assert ys.max() - ys.min() > 0.55 * (ds.gy[-1] - ds.gy[0])
+    dmin = np.inf
+    for a in range(12):
+        for b in range(a + 1, 12):
+            dmin = min(dmin, np.hypot(xs[a] - xs[b], ys[a] - ys[b]))
+    assert dmin > 8.0  # not piled in one corner
+    # Staggered 梅花: odd rows sit at extra Y stations, not a 3×4 rectangle.
+    assert len(np.unique(np.round(xs, 5))) >= 3
+    assert len(np.unique(np.round(ys, 5))) >= 5
+
+    lattice = plum_blossom_hole_indices(ds.gx, ds.gy, 12)
+    assert len(lattice) == 12
+    assert len(set(lattice)) == 12
+
+    # Nested prefixes stay uniformly spread (farthest-point order).
+    sub = subset_holes(ds, 4)
+    sp = unique_hole_xy_indices(sub)
+    sxs, sys = ds.gx[sp[:, 0]], ds.gy[sp[:, 1]]
+    assert sxs.max() - sxs.min() > 0.40 * (ds.gx[-1] - ds.gx[0])
+    assert sys.max() - sys.min() > 0.40 * (ds.gy[-1] - ds.gy[0])
