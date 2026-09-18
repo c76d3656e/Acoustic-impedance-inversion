@@ -102,7 +102,11 @@ def test_fusion_does_not_cancel_borehole_hard_data():
     # Volume fusion should improve on well-only kriging when several collars
     # constrain the collocated secondary.
     from validation import summary
-    assert summary(ds.ucs_true, res.S_F)["RMSE"] <= summary(ds.ucs_true, res.S_M)["RMSE"] + 1e-6
+    fused = summary(ds.ucs_true, res.S_F)
+    mwd = summary(ds.ucs_true, res.S_M)
+    seis = summary(ds.ucs_true, res.S_Z)
+    assert fused["RMSE"] <= mwd["RMSE"] + 1e-6
+    assert fused["RMSE"] <= seis["RMSE"] + 1e-6
 
 
 def test_impedance_calibration_monotonic():

@@ -5,10 +5,10 @@ Pipeline:
 1. Calibrate impedance to strength ``UCS = f(AI)`` on co-located samples
    (:class:`ImpedanceStrengthCalibrator`), turning the seismic impedance volume
    into a second strength field ``S_Z`` with its own uncertainty.
-2. Fuse borehole kriging ``S_M`` with collocated ``S_Z`` by Doyen's Bayesian
-   collocated cokriging (SPE 36498).  ``ρ`` is ``corr(UCS, AI)`` at the holes
-   so a one-well GP cannot claim perfect correlation.  Hole voxels are
-   written back to the MWD point estimates.
+2. Fuse borehole UCS with collocated ``S_Z`` by kriging with external drift
+   (Xu et al., SPE 24742): drift = ``(depth, S_Z)``, residual range = hole
+   spacing so mechanical leftovers stay local and seismic peaks are not
+   ρ-damped.  A single collar falls back to Doyen's Bayesian update.
 """
 
 from .calibration import ImpedanceStrengthCalibrator

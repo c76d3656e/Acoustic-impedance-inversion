@@ -13,8 +13,10 @@ def test_fusion_pipeline_shapes():
     assert isinstance(res, FusionResult)
     for arr in (res.ai_inv, res.S_M, res.var_M, res.S_Z, res.var_Z, res.S_F, res.var_F):
         assert arr.shape == ds.ucs_true.shape
-    # Doyen update never inflates the primary kriging variance.
-    assert np.all(res.var_F <= res.var_M + 1e-6)
+    # Residual-kriging variance is the leftover after the seismic drift, so
+    # it need not sit below the well-only kriging variance at every voxel.
+    assert np.all(np.isfinite(res.var_F))
+    assert np.all(res.var_F >= -1e-6)
 
 
 def test_report_slice_writes_png(tmp_path):
