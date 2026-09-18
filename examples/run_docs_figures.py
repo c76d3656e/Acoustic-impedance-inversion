@@ -27,7 +27,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from datasets import generate_mine, subset_holes
+from datasets import generate_mine, subset_holes, unique_hole_xy_indices
 from fusion import run_fusion_pipeline
 from validation import summary, rmse as rmse_score, r2_score
 from visualization import (
@@ -65,7 +65,7 @@ def masked_metrics(true, pred, mask_xy) -> dict:
     return {"R2": r2_score(t, p), "RMSE": rmse_score(t, p)}
 
 
-def plot_metrics_curves(rows, outfile):
+def plot_metrics_curves(rows, outfile, far_radius: float = 12.0):
     configure_cjk_font()
     n = [r["n_holes"] for r in rows]
     fig, axes = plt.subplots(1, 2, figsize=(10.4, 4.2), constrained_layout=True)
@@ -73,10 +73,15 @@ def plot_metrics_curves(rows, outfile):
     axes[0].plot(n, [r["mwd_rmse"] for r in rows], "o-", label="仅钻孔克里金插值")
     axes[0].plot(n, [r["seis_rmse"] for r in rows], "s--", label="仅波阻抗标定")
     axes[0].plot(n, [r["fused_rmse"] for r in rows], "D-", label="不确定度加权融合")
-    axes[0].plot(n, [r["mwd_far_rmse"] for r in rows], "o:", color="C0",
-                 alpha=0.7, label="仅钻孔（距孔 > 80 m）")
-    axes[0].plot(n, [r["fused_far_rmse"] for r in rows], "D:", color="C2",
-                 alpha=0.7, label="融合（距孔 > 80 m）")
+    if np.isfinite(rows[0].get("mwd_far_rmse", np.nan)):
+        axes[0].plot(n, [r["mwd_far_rmse"] for r in rows], "o:", color="C0",
+                     alpha=0.7, label=f"仅钻孔（距孔 > {far_radius:.0f} m）")
+        axes[0].plot(n, [r["fused_far_rmse"] for r in rows], "D:", color="C2",
+                     alpha=0.7, label=f"融合（距孔 > {far_radius:.0f} m）")
+    axes[0].plot(n, [r["hole_seis_rmse"] for r in rows], "s:", color="C1",
+                 alpha=0.85, label="仅波阻抗（孔轨迹上）")
+    axes[0].plot(n, [r["hole_fused_rmse"] for r in rows], "D:", color="C2",
+                 alpha=0.85, label="融合（孔轨迹上）")
     axes[0].set_xlabel("钻孔数量")
     axes[0].set_ylabel("RMSE (MPa)")
     axes[0].set_title("体积均方根误差随钻孔数变化")
@@ -159,13 +164,68 @@ def write_metrics(rows, outdir):
     return csv_path, json_path
 
 
+def hole_trace_rmse(ds, field) -> float:
+    return float(rmse_score(ds.ucs_at_holes, np.asarray(field)[ds.hole_ix, ds.hole_iy, ds.hole_iz]))
+
+
+def plot_along_holes(ds, res, outfile, n_show: int = 2):
+    """UCS vs elevation along the first ``n_show`` unique holes (forced targets)."""
+    configure_cjk_font()
+    pairs = unique_hole_xy_indices(ds)
+    n_show = min(n_show, len(pairs))
+    titles = ["蚀变晕钻孔（力学残差，波阻抗看不见）", "硬矿体钻孔"]
+    fig, axes = plt.subplots(1, n_show, figsize=(5.2 * n_show, 5.6),
+                             constrained_layout=True, sharey=True)
+    axes = np.atleast_1d(axes)
+    for k, ax in enumerate(axes):
+        i, j = pairs[k]
+        mask = (ds.hole_ix == i) & (ds.hole_iy == j)
+        z = ds.hole_xyz[mask, 2]
+        order = np.argsort(z)
+        z = z[order]
+        true = ds.ucs_at_holes[mask][order]
+        sm = res.S_M[i, j, ds.hole_iz[mask]][order]
+        sz = res.S_Z[i, j, ds.hole_iz[mask]][order]
+        sf = res.S_F[i, j, ds.hole_iz[mask]][order]
+        ax.plot(true, z, "k-", lw=2.0, label="真值 UCS")
+        ax.plot(sz, z, "--", color="C1", lw=1.8, label="仅波阻抗标定")
+        ax.plot(sm, z, ":", color="C0", lw=1.8, label="MWD（孔点）")
+        ax.plot(sf, z, "-", color="C2", lw=2.0, label="不确定度加权融合")
+        ax.set_xlabel("UCS (MPa)")
+        ax.set_title(titles[k] if k < len(titles) else f"钻孔 {k+1}")
+        ax.grid(True, alpha=0.3)
+        ax.invert_yaxis()
+        if k == 0:
+            ax.set_ylabel("标高 (m)")
+            ax.legend(fontsize=8, loc="best")
+    fig.suptitle("沿孔剖面：钻孔在轨迹上把强度钉回真值，波阻抗给出趋势", fontsize=13)
+    fig.savefig(outfile, dpi=150)
+    plt.close(fig)
+    return outfile
+
+
+def plot_mwd_weight(ds, res, z_index, outfile):
+    """Where fusion actually listens to MWD (high only next to holes)."""
+    tau_m = 1.0 / (res.var_M + 1e-12)
+    tau_z = 1.0 / (res.var_Z + 1e-12)
+    w_m = tau_m / (tau_m + tau_z)
+    elev = float(ds.gz[z_index])
+    plot_report_slice(
+        w_m, ds.gx, ds.gy, z_index, outfile,
+        title=rf"{elev:.0f} m 标高融合权重 $w_{{\mathrm{{MWD}}}}$（越亮越信钻孔）",
+        cbar_label=r"$w_{\mathrm{MWD}}$", holes_xy=holes_xy(ds),
+        cmap="magma", vmin=0.0, vmax=1.0,
+    )
+    return outfile
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--outdir", default="docs/images")
     parser.add_argument("--n-holes", type=int, default=12)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--elevation", type=float, default=-60.0)
-    parser.add_argument("--far-radius", type=float, default=80.0)
+    parser.add_argument("--elevation", type=float, default=-20.0)
+    parser.add_argument("--far-radius", type=float, default=12.0)
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -227,7 +287,13 @@ def main() -> None:
         ds_all.gx, ds_all.gy, zi,
         os.path.join(args.outdir, "fusion_advantage.png"),
         cbar_label="UCS (MPa)", vmin=vmin, vmax=vmax, ncols=4,
-        suptitle=f"融合优势对比（{elev:.0f} m 标高，{args.n_holes} 口钻孔）",
+        suptitle=f"融合优势对比（{elev:.0f} m 标高，{args.n_holes} 口钻孔，50×80 m）",
+    )
+    plot_along_holes(
+        ds_all, res_all, os.path.join(args.outdir, "along_hole_profiles.png"),
+    )
+    plot_mwd_weight(
+        ds_all, res_all, zi, os.path.join(args.outdir, "mwd_fusion_weight.png"),
     )
 
     m_all = {
@@ -266,6 +332,9 @@ def main() -> None:
             "seis_r2": seis["R2"], "seis_rmse": seis["RMSE"], "seis_mae": seis["MAE"],
             "fused_r2": fused["R2"], "fused_rmse": fused["RMSE"], "fused_mae": fused["MAE"],
             "mwd_far_rmse": mwd_far["RMSE"], "fused_far_rmse": fused_far["RMSE"],
+            "hole_mwd_rmse": hole_trace_rmse(ds, res.S_M),
+            "hole_seis_rmse": hole_trace_rmse(ds, res.S_Z),
+            "hole_fused_rmse": hole_trace_rmse(ds, res.S_F),
         }
         rows.append(row)
         fused_fields.append(res.S_F)
@@ -279,7 +348,8 @@ def main() -> None:
         )
 
     csv_path, json_path = write_metrics(rows, args.outdir)
-    plot_metrics_curves(rows, os.path.join(args.outdir, "metrics_vs_nholes.png"))
+    plot_metrics_curves(rows, os.path.join(args.outdir, "metrics_vs_nholes.png"),
+                        far_radius=args.far_radius)
 
     fused_panels = [
         (fld, f"n = {n} 口钻孔", holes_xy(ds))

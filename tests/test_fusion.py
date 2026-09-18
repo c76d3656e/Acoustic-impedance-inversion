@@ -63,3 +63,6 @@ def test_pipeline_accepts_precomputed_impedance_and_one_hole():
     mwd = summary(ds.ucs_true, res1.S_M)
     fused = summary(ds.ucs_true, res1.S_F)
     assert fused["RMSE"] <= mwd["RMSE"] + 1e-6
+    hole_sz = summary(one.ucs_at_holes, res1.S_Z[one.hole_ix, one.hole_iy, one.hole_iz])
+    hole_sf = summary(one.ucs_at_holes, res1.S_F[one.hole_ix, one.hole_iy, one.hole_iz])
+    assert hole_sf["RMSE"] <= hole_sz["RMSE"] + 1e-6

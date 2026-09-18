@@ -18,7 +18,15 @@ def test_generate_mine_shapes_and_ranges():
 def test_ai_and_ucs_are_correlated():
     ds = generate_mine(shape=(20, 16, 32), n_holes=8, seed=3)
     corr = np.corrcoef(ds.ai_true.ravel(), ds.ucs_true.ravel())[0, 1]
-    assert corr > 0.5  # shared latent competence field
+    assert 0.5 < corr < 0.93  # shared competence, but not a rescaled copy
+
+
+def test_default_block_is_50_by_80():
+    ds = generate_mine(n_holes=4, seed=0)
+    assert abs(ds.gx[-1] - 50.0) < 1e-6
+    assert abs(ds.gy[-1] - 80.0) < 1e-6
+    assert abs(ds.gz[-1] + 40.0) < 1e-6
+    assert ds.ucs_true.shape == (25, 40, 40)
 
 
 def test_mwd_monotonic_with_strength():

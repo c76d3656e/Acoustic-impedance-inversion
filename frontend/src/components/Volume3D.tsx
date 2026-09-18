@@ -318,7 +318,7 @@ function Scene() {
   const { x, y, z } = manifest.axes;
   const sx = (x[x.length - 1] - x[0]) * S;
   const sy = (y[y.length - 1] - y[0]) * S;
-  const sz = (z[0] - z[z.length - 1]) * S; // 0 - (-120) = 120
+  const sz = (z[0] - z[z.length - 1]) * S;
   const cx = ((x[0] + x[x.length - 1]) / 2) * S;
   const cy = ((y[0] + y[y.length - 1]) / 2) * S;
   const cz = ((z[0] + z[z.length - 1]) / 2) * S;

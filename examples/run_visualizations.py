@@ -40,7 +40,7 @@ def main() -> None:
     parser.add_argument("--outdir", default="results/viz")
     parser.add_argument("--n-holes", type=int, default=12)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--elevation", type=float, default=-60.0)
+    parser.add_argument("--elevation", type=float, default=-20.0)
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -91,7 +91,7 @@ def main() -> None:
 
     # ---------------- Interactive 3-D HTML ------------------------------
     print(">> Interactive 3-D HTML (Plotly) ...")
-    elev_idx = [nearest_index(ds.gz, e) for e in (-24, -48, -72, -96)]
+    elev_idx = [nearest_index(ds.gz, e) for e in (-8, -16, -24, -32)]
     h1 = export_volume_html(
         res.ai_inv, ds.gx, ds.gy, ds.gz,
         os.path.join(html_dir, "impedance_volume.html"),

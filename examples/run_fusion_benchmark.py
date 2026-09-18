@@ -39,7 +39,7 @@ def main() -> None:
     parser.add_argument("--n-holes", type=int, default=12)
     parser.add_argument("--noise", type=float, default=0.05)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--elevations", type=float, nargs="*", default=[-24, -60, -96])
+    parser.add_argument("--elevations", type=float, nargs="*", default=[-8, -20, -32])
     args = parser.parse_args()
 
     figdir = os.path.join(args.outdir, "figures")

@@ -2,15 +2,17 @@
 
 Generates a *single* ground-truth world in one coordinate system so that the
 MWD, seismic and UCS sources are strictly co-located -- something no public
-dataset provides.  The scene matches the report: X 0-500 m, Y 0-400 m,
-elevation 0 to -120 m, 10 benches, a handful of drill holes.
+dataset provides.  Default scene: a compact blast block X 0-50 m, Y 0-80 m,
+elevation 0 to -40 m (about 10 benches), a handful of drill holes.
 
 Design principles
 -----------------
 * A latent "rock competence" field drives *both* UCS and acoustic impedance, so
   ``AI`` and ``UCS`` are correlated (calibration is meaningful) but not
-  identical (an independent component keeps the seismic-derived strength
-  imperfect -> fusion has something to gain).
+  identical.  UCS also carries a *mechanical residual* (weathering / alteration)
+  that MWD and core see and AI does not; AI carries independent acoustic
+  texture.  Without that split, ``corr(AI, UCS)`` collapses to ~0.98 and the
+  borehole branch looks redundant on maps.
 * MWD parameters are produced from UCS through monotonic physical relations plus
   realistic scatter, so ``MWD -> UCS`` is learnable but noisy.
 * Everything is derived from a fixed seed and hidden ground truth, enabling
@@ -53,8 +55,8 @@ def _normalize(a: np.ndarray) -> np.ndarray:
 
 
 def generate_mine(
-    shape: tuple[int, int, int] = (25, 20, 48),
-    extent=((0.0, 500.0), (0.0, 400.0), (0.0, -120.0)),
+    shape: tuple[int, int, int] = (25, 40, 40),
+    extent=((0.0, 50.0), (0.0, 80.0), (0.0, -40.0)),
     n_holes: int = 12,
     hole_sample_step: int = 1,
     seed: int = 42,
@@ -62,10 +64,11 @@ def generate_mine(
     nx, ny, nz = shape
     (x0, x1), (y0, y1), (z0, z1) = extent
     rng = np.random.default_rng(seed)
+    z_span = abs(float(z1) - float(z0)) or 1.0
 
     gx = np.linspace(x0, x1, nx)
     gy = np.linspace(y0, y1, ny)
-    gz = np.linspace(z0, z1, nz)  # 0 -> -120
+    gz = np.linspace(z0, z1, nz)
 
     # --- latent competence field ------------------------------------------
     # Strong, multi-scale LATERAL heterogeneity so horizontal (bench) slices
@@ -81,20 +84,22 @@ def generate_mine(
     xx, yy, zz = np.meshgrid(gx, gy, gz, indexing="ij")
 
     def _fracture(ax, ay, az, c, w):
-        plane = ax * xx / x1 + ay * yy / y1 + az * (-zz) / 120.0
+        plane = ax * xx / x1 + ay * yy / y1 + az * (-zz) / z_span
         return np.exp(-((plane - c) ** 2) / (2.0 * w**2))
 
     fr1 = _fracture(0.6, 0.5, -0.7, 0.15, 0.05)   # dipping low-strength zone
     fr2 = _fracture(-0.4, 0.7, 0.5, 0.55, 0.06)   # second, crossing zone
 
-    def _blob(cx, cy, cz, rx, ry, rz):
+    def _blob(fx, fy, fz, rx, ry, rz):
         return np.exp(
-            -(((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2 + ((zz - cz) / rz) ** 2)
+            -(((xx - fx * x1) / rx) ** 2
+              + ((yy - fy * y1) / ry) ** 2
+              + ((zz + fz * z_span) / rz) ** 2)
         )
 
-    hi1 = _blob(360, 150, -55, 70, 70, 18)   # hard ore body
-    hi2 = _blob(120, 300, -90, 60, 60, 16)
-    lo1 = _blob(250, 220, -35, 85, 85, 16)   # weathered / soft lens
+    hi1 = _blob(0.72, 0.38, 0.45, 0.16 * x1, 0.14 * y1, 0.15 * z_span)  # hard ore
+    hi2 = _blob(0.24, 0.75, 0.75, 0.14 * x1, 0.12 * y1, 0.13 * z_span)
+    lo1 = _blob(0.50, 0.55, 0.30, 0.18 * x1, 0.16 * y1, 0.13 * z_span)  # soft lens
 
     competence = (
         0.10
@@ -108,15 +113,38 @@ def generate_mine(
     # widen the distribution for stronger contrast, then clip to a valid range
     competence = np.clip((competence - 0.5) * 1.4 + 0.5, 0.02, 1.0)
 
-    ucs_true = UCS_MIN + UCS_RANGE * competence
+    # Mechanical residual that acoustics cannot see: near-surface weathering
+    # plus an alteration halo.  Core / MWD measure the weakened UCS; AI does not.
+    weather = (1.0 - depth_frac) ** 1.5
+    alter = _blob(0.36, 0.40, 0.38, 0.18 * x1, 0.14 * y1, 0.18 * z_span)
+    mech = np.clip(0.50 * weather + 0.70 * alter, 0.0, 1.0)
+    ucs_latent = np.clip(0.78 * competence - 0.24 * mech, 0.02, 1.0)
+    ucs_true = UCS_MIN + UCS_RANGE * ucs_latent
 
     ai_tex = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(3.0, 3.0, 4.0)))
-    ai_latent = np.clip(0.72 * competence + 0.18 * ai_tex + 0.10 * coarse, 0.0, 1.0)
+    # Independent acoustic texture — AI is related to competence, not a
+    # rescaled copy of UCS (the previous 0.72/0.18/0.10 mix yielded corr~0.98).
+    ai_latent = np.clip(0.48 * competence + 0.52 * ai_tex, 0.0, 1.0)
     ai_true = AI_MIN + AI_RANGE * ai_latent
 
     # --- drill holes -------------------------------------------------------
-    hi = rng.choice(np.arange(1, nx - 1), size=n_holes, replace=False)
-    hj = rng.choice(np.arange(1, ny - 1), size=n_holes, replace=False)
+    # Force one hole through the alteration halo and one through the hard body
+    # so along-hole MWD corrections are visible; remaining holes are random.
+    forced_xy = [(0.36 * x1, 0.40 * y1), (0.72 * x1, 0.38 * y1)]
+    forced = [
+        (int(np.argmin(np.abs(gx - cx))), int(np.argmin(np.abs(gy - cy))))
+        for cx, cy in forced_xy
+    ]
+    forced = [(i, j) for i, j in forced if 1 <= i < nx - 1 and 1 <= j < ny - 1][:n_holes]
+    n_random = max(0, n_holes - len(forced))
+    taken = set(forced)
+    pool = [(i, j) for i in range(1, nx - 1) for j in range(1, ny - 1) if (i, j) not in taken]
+    if n_random > len(pool):
+        raise ValueError("n_holes too large for the grid")
+    pick = rng.choice(len(pool), size=n_random, replace=False) if n_random else []
+    extra = [pool[k] for k in np.atleast_1d(pick)] if n_random else []
+    hi = np.array([p[0] for p in (forced + extra)], dtype=int)
+    hj = np.array([p[1] for p in (forced + extra)], dtype=int)
     depth_idx = np.arange(0, nz, hole_sample_step)
 
     ix, iy, iz = [], [], []
@@ -146,7 +174,10 @@ def generate_mine(
         ucs_true=ucs_true, ai_true=ai_true,
         hole_ix=ix, hole_iy=iy, hole_iz=iz, hole_xyz=hole_xyz,
         V=V, N=N, M=M, F=F, ucs_at_holes=ucs_holes,
-        meta={"shape": shape, "extent": extent, "n_holes": n_holes, "seed": seed},
+        meta={
+            "shape": shape, "extent": extent, "n_holes": n_holes, "seed": seed,
+            "corr_ai_ucs": float(np.corrcoef(ai_true.ravel(), ucs_true.ravel())[0, 1]),
+        },
     )
 
 
