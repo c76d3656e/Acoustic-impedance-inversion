@@ -151,8 +151,8 @@
       "file": "fields/mwd_strength.bin",
       "scale": 1.0,
       "default_cmap": "viridis",
-      "min": 20.829082328115746,
-      "max": 68.94423456105372
+      "min": 19.370601220452265,
+      "max": 83.32894794339872
     },
     {
       "key": "fused_strength",
@@ -161,8 +161,8 @@
       "file": "fields/fused_strength.bin",
       "scale": 1.0,
       "default_cmap": "viridis",
-      "min": 21.623561266652075,
-      "max": 68.57581623869119
+      "min": 21.280883041112624,
+      "max": 81.57898553366199
     },
     {
       "key": "uncertainty",
@@ -171,8 +171,8 @@
       "file": "fields/uncertainty.bin",
       "scale": 1.0,
       "default_cmap": "magma",
-      "min": 2.679186662812861,
-      "max": 7.933310759544824
+      "min": 2.6819845017275434,
+      "max": 9.75998092453208
     },
     {
       "key": "ground_truth",
