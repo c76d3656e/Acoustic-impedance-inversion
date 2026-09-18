@@ -91,7 +91,13 @@ export default function FigureExport() {
         setPng(url);
         setFilename("fusion_advantage.png");
       } else if (kind === "profile") {
-        const featured = wells.filter((w) => w.profile);
+        const featured = wells
+          .filter((w) => w.profile)
+          .sort((a, b) => {
+            const ra = (a.title_zh || "").includes("蚀变") ? 0 : 1;
+            const rb = (b.title_zh || "").includes("蚀变") ? 0 : 1;
+            return ra - rb;
+          });
         const chosen = (featured.length ? featured : wells).slice(0, 2);
         if (!chosen.length) throw new Error("没有钻孔数据");
         const url = await renderProfileFigure({

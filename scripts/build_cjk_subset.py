@@ -52,6 +52,7 @@ def collect_chars() -> str:
     chars = {chr(c) for c in range(0x20, 0x7F)}  # ASCII printable
     paths = glob.glob("frontend/src/**/*", recursive=True)
     paths += ["frontend/index.html", "frontend/public/data/manifest.json"]
+    paths += glob.glob("frontend/public/py/**/*", recursive=True)
     for p in paths:
         if os.path.isfile(p):
             try:

@@ -1,0 +1,212 @@
+"""Publication matplotlib recipes for the static frontend (Pyodide) and tests.
+
+Layout matches ``visualization.report_style``: ``aspect='auto'`` so the 50×80 m
+block fills the axes the same way as ``docs/images``, and a fixed canvas
+(no ``bbox_inches='tight'``) so PNG pixel aspect equals figsize × dpi.
+
+  * slice   — 7.2 × 5.6 in @ 150 dpi → 1080 × 840
+  * compare — (3.4×ncols + 1.2) × 6.6 in @ 150 dpi → 2220 × 990 for 4 columns
+  * profile — 5.2×n × 5.6 in @ 150 dpi → 1560 × 840 for 2 wells
+"""
+
+from __future__ import annotations
+
+import base64
+import io
+import json
+
+import matplotlib
+
+matplotlib.use("Agg")
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+
+SLICE_FIGSIZE = (7.2, 5.6)
+COMPARE_ROW_H = 6.6
+COMPARE_COL_W = 3.4
+COMPARE_COL_PAD = 1.2
+PROFILE_PANEL_W = 5.2
+PROFILE_H = 5.6
+SAVE_DPI = 150
+
+
+def _payload(p):
+    return json.loads(p) if isinstance(p, str) else p
+
+
+def _save_fixed(fig, dpi: int = SAVE_DPI) -> str:
+    """Save using figsize × dpi, never tight-crop (that distorts panel aspect)."""
+    old = plt.rcParams.get("savefig.bbox")
+    plt.rcParams["savefig.bbox"] = None
+    try:
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=dpi, facecolor="white")
+        plt.close(fig)
+        return base64.b64encode(buf.getvalue()).decode()
+    finally:
+        plt.rcParams["savefig.bbox"] = old
+
+
+def _style_ax(ax, ext, title, xlabel="", ylabel=""):
+    ax.set_title(title, fontsize=11)
+    ax.set_xlim(ext[0], ext[1])
+    ax.set_ylim(ext[2], ext[3])
+    ax.set_aspect("auto")
+    if xlabel:
+        ax.set_xlabel(xlabel)
+    if ylabel:
+        ax.set_ylabel(ylabel)
+
+
+def _holes(ax, holes, s_outer=55, s_inner=8):
+    for bx, by in holes:
+        ax.scatter([bx], [by], s=s_outer, facecolors="none",
+                   edgecolors="k", linewidths=1.1, zorder=5)
+        ax.scatter([bx], [by], s=s_inner, c="k", zorder=6)
+
+
+def _xy(p):
+    w, h = int(p["w"]), int(p["h"])
+    ext = p["extent"]
+    xs = np.linspace(ext[0], ext[1], w)
+    ys = np.linspace(ext[2], ext[3], h)
+    return w, h, ext, xs, ys
+
+
+def _field(values, w, h, scale):
+    # Payload is origin-upper (row 0 = top = ext[3]); contourf wants south row first.
+    return np.asarray(values, dtype=float).reshape(h, w)[::-1] / float(scale)
+
+
+def _cmap_from_stops(p):
+    stops = sorted(p["cmapStops"], key=lambda s: s["pos"])
+    pairs = [(s["pos"], tuple(c / 255.0 for c in s["color"])) for s in stops]
+    if p.get("reverse"):
+        pairs = sorted([(1 - pos, col) for pos, col in pairs], key=lambda t: t[0])
+    lo, hi = pairs[0][0], pairs[-1][0]
+    if hi <= lo:
+        hi = lo + 1.0
+    pairs = [(min(1.0, max(0.0, (pos - lo) / (hi - lo))), col) for pos, col in pairs]
+    pairs[0] = (0.0, pairs[0][1])
+    pairs[-1] = (1.0, pairs[-1][1])
+    return LinearSegmentedColormap.from_list("custom", pairs)
+
+
+def render_slice(payload) -> str:
+    p = _payload(payload)
+    w, h, ext, xs, ys = _xy(p)
+    Z = _field(p["values"], w, h, p["scale"])
+    cmap = _cmap_from_stops(p)
+    vmin, vmax = float(np.nanmin(Z)), float(np.nanmax(Z))
+    if not np.isfinite(vmin) or not np.isfinite(vmax) or vmax <= vmin:
+        vmax = vmin + 1.0
+    lev = np.linspace(vmin, vmax, 30)
+
+    fig, ax = plt.subplots(figsize=SLICE_FIGSIZE)
+    cf = ax.contourf(xs, ys, Z, levels=lev, cmap=cmap, extend="both")
+    ax.contour(xs, ys, Z, levels=lev, colors="k", linewidths=0.4,
+               linestyles="--", alpha=0.5)
+    _holes(ax, p.get("boreholes") or [], s_outer=90, s_inner=10)
+    cb = fig.colorbar(cf, ax=ax)
+    cb.set_label(p["unit"])
+    _style_ax(ax, ext, p["title"], p["horizLabel"], p["vertLabel"])
+    fig.tight_layout()
+    return _save_fixed(fig)
+
+
+def render_compare(payload) -> str:
+    p = _payload(payload)
+    w, h, ext, xs, ys = _xy(p)
+    scale = float(p["scale"])
+    panels = p["panels"]
+    truth = _field(panels[0]["values"], w, h, scale)
+    fields = [_field(m["values"], w, h, scale) for m in panels[1:]]
+    residuals = [fld - truth for fld in fields]
+    slice_abs = np.concatenate([np.abs(r).ravel() for r in residuals]) if residuals else np.array([1.0])
+    err_abs = float(np.percentile(slice_abs, 98)) if slice_abs.size else 1.0
+    if not np.isfinite(err_abs) or err_abs < 1e-6:
+        err_abs = 1.0
+
+    vmin = float(p["vmin"]) / scale
+    vmax = float(p["vmax"]) / scale
+    if vmax <= vmin:
+        vmax = vmin + 1.0
+    lev = np.linspace(vmin, vmax, 20)
+    err_lev = np.linspace(-err_abs, err_abs, 21)
+    n_m = len(fields)
+    n_cols = n_m + 1
+    fig_w = COMPARE_COL_W * n_cols + COMPARE_COL_PAD
+    fig, axes = plt.subplots(
+        2, n_cols, figsize=(fig_w, COMPARE_ROW_H), constrained_layout=True,
+    )
+    titles_top = [panels[0]["title"]] + [m["title"] for m in panels[1:]]
+    vols_top = [truth] + fields
+    cf0 = None
+    for c, (vol, title) in enumerate(zip(vols_top, titles_top)):
+        ax = axes[0, c]
+        cf0 = ax.contourf(xs, ys, vol, levels=lev, cmap="viridis", extend="both")
+        ax.contour(xs, ys, vol, levels=lev, colors="k", linewidths=0.3,
+                   linestyles="--", alpha=0.4)
+        _holes(ax, p.get("boreholes") or [])
+        _style_ax(ax, ext, title, "", p["vertLabel"] if c == 0 else "")
+        ax.set_xlabel("")
+
+    axes[1, 0].axis("off")
+    axes[1, 0].text(
+        0.5, 0.55,
+        "下行：预测 $-$ 真值\n红＝估计偏高\n蓝＝估计偏低\n越浅越好",
+        transform=axes[1, 0].transAxes, ha="center", va="center",
+        fontsize=11, linespacing=1.6,
+    )
+    cf1 = None
+    for c, (res, method) in enumerate(zip(residuals, panels[1:]), start=1):
+        ax = axes[1, c]
+        cf1 = ax.contourf(
+            xs, ys, res, levels=err_lev, cmap="RdBu_r",
+            extend="both", vmin=-err_abs, vmax=err_abs,
+        )
+        ax.contour(xs, ys, res, levels=[0.0], colors="k", linewidths=0.6, alpha=0.45)
+        _holes(ax, p.get("boreholes") or [])
+        rmse = float(np.sqrt(np.mean(res ** 2)))
+        _style_ax(
+            ax, ext, f"{method['residualTitle']}\nRMSE {rmse:.1f} MPa",
+            p["horizLabel"], p["vertLabel"] if c == 1 else "",
+        )
+    if cf0 is not None:
+        cbar0 = fig.colorbar(cf0, ax=axes[0, :].tolist(), shrink=0.9, pad=0.02)
+        cbar0.set_label("UCS (MPa)")
+    if cf1 is not None:
+        cbar1 = fig.colorbar(cf1, ax=axes[1, 1:].tolist(), shrink=0.9, pad=0.02)
+        cbar1.set_label(r"预测 $-$ 真值 (MPa)")
+    if p.get("title"):
+        fig.suptitle(p["title"], fontsize=13)
+    return _save_fixed(fig)
+
+
+def render_profile(payload) -> str:
+    p = _payload(payload)
+    wells = p["wells"]
+    n = max(1, len(wells))
+    fig, axes = plt.subplots(
+        1, n, figsize=(PROFILE_PANEL_W * n, PROFILE_H),
+        constrained_layout=True, sharey=True,
+    )
+    axes = np.atleast_1d(axes)
+    for k, ax in enumerate(axes):
+        w = wells[k]
+        z = np.array(w["z"], dtype=float)
+        ax.plot(w["ucs_true"], z, "k-", lw=2.0, label="真值 UCS")
+        ax.plot(w["ucs_seis"], z, "--", color="C1", lw=1.8, label="仅波阻抗标定")
+        ax.plot(w["ucs_mwd"], z, ":", color="C0", lw=1.8, label="MWD（孔点）")
+        ax.plot(w["ucs_fused"], z, "-", color="C2", lw=2.0, label="外漂移克里金融合")
+        ax.set_xlabel("UCS (MPa)")
+        ax.set_title(w["title"])
+        ax.grid(True, alpha=0.3)
+        ax.invert_yaxis()
+        if k == 0:
+            ax.set_ylabel("标高 (m)")
+            ax.legend(fontsize=8, loc="best")
+    fig.suptitle(p["title"], fontsize=13)
+    return _save_fixed(fig)
