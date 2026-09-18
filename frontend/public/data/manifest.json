@@ -141,8 +141,8 @@
       "file": "fields/impedance.bin",
       "scale": 1000000.0,
       "default_cmap": "viridis",
-      "min": 4398310.81647677,
-      "max": 10870050.660891024
+      "min": 4368526.345313856,
+      "max": 9267710.689512078
     },
     {
       "key": "mwd_strength",
@@ -151,8 +151,8 @@
       "file": "fields/mwd_strength.bin",
       "scale": 1.0,
       "default_cmap": "viridis",
-      "min": 18.195532540003022,
-      "max": 138.35690407644486
+      "min": 20.829082328115746,
+      "max": 68.94423456105372
     },
     {
       "key": "fused_strength",
@@ -161,8 +161,8 @@
       "file": "fields/fused_strength.bin",
       "scale": 1.0,
       "default_cmap": "viridis",
-      "min": 19.169421643521094,
-      "max": 134.8781079954244
+      "min": 21.623561266652075,
+      "max": 68.57581623869119
     },
     {
       "key": "uncertainty",
@@ -171,8 +171,8 @@
       "file": "fields/uncertainty.bin",
       "scale": 1.0,
       "default_cmap": "magma",
-      "min": 4.2038986261180895,
-      "max": 18.63276698968246
+      "min": 2.679186662812861,
+      "max": 7.933310759544824
     },
     {
       "key": "ground_truth",
@@ -182,7 +182,7 @@
       "scale": 1.0,
       "default_cmap": "viridis",
       "min": 23.0,
-      "max": 136.9999999998738
+      "max": 93.02926166561649
     }
   ],
   "boreholes_file": "boreholes.json",

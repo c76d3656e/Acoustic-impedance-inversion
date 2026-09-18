@@ -197,7 +197,7 @@ def plot_hole_layout(ds, z_index, outfile):
                linestyles="--", alpha=0.35)
     if len(xy) >= 3:
         tri = Delaunay(xy)
-        max_edge = 1.55 * typical_hole_spacing(ds)
+        max_edge = 1.35 * typical_hole_spacing(ds)
         drawn = set()
         for simplex in tri.simplices:
             for a, b in ((0, 1), (1, 2), (2, 0)):

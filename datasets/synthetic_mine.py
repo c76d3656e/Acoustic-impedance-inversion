@@ -15,6 +15,8 @@ Design principles
   borehole branch looks redundant on maps.
 * MWD parameters are produced from UCS through monotonic physical relations plus
   realistic scatter, so ``MWD -> UCS`` is learnable but noisy.
+* Drill holes follow an approximate triangular / 梅花 lattice so the block is
+  sampled uniformly rather than clustered.
 * Everything is derived from a fixed seed and hidden ground truth, enabling
   quantitative evaluation of every branch and of the fusion.
 """
@@ -139,8 +141,8 @@ def plum_blossom_hole_indices(
     if ly >= lx:
         # Rows along X, holes along the long Y side; odd rows shifted by a/2.
         dx = a * np.sqrt(3.0) / 2.0
-        n_row = max(2, int(np.ceil(lx / max(dx, 1e-6))))
-        n_col = max(2, int(np.ceil(ly / max(a, 1e-6))))
+        n_row = max(2, int(np.round(lx / max(dx, 1e-6))))
+        n_col = max(2, int(np.round(ly / max(a, 1e-6))))
         xs = np.linspace(x0, x1, n_row)
         even_ys = np.linspace(y0, y1, n_col)
         half = 0.5 * (even_ys[1] - even_ys[0]) if n_col > 1 else 0.0
@@ -153,8 +155,8 @@ def plum_blossom_hole_indices(
                 _add(float(x), float(y))
     else:
         dy = a * np.sqrt(3.0) / 2.0
-        n_col = max(2, int(np.ceil(ly / max(dy, 1e-6))))
-        n_row = max(2, int(np.ceil(lx / max(a, 1e-6))))
+        n_col = max(2, int(np.round(ly / max(dy, 1e-6))))
+        n_row = max(2, int(np.round(lx / max(a, 1e-6))))
         ys = np.linspace(y0, y1, n_col)
         even_xs = np.linspace(x0, x1, n_row)
         half = 0.5 * (even_xs[1] - even_xs[0]) if n_row > 1 else 0.0
