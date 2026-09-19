@@ -87,12 +87,19 @@ export default function VizControls({ compact = false }: { compact?: boolean }) 
           options={viewOptions}
           compact={compact}
         />
-        <div className="flags">
+        <div className={clsx("flags", compact && "hud-checks")}>
           <label className="row checkbox">
             <input type="checkbox" checked={showBoreholes}
               onChange={(e) => setShowBoreholes(e.target.checked)} />
             <span>{t.showBoreholes}</span>
           </label>
+          {compact && view === "3d" && volumeStyle === "voxel" && (
+            <label className="row checkbox">
+              <input type="checkbox" checked={sectionReverse}
+                onChange={(e) => setSectionReverse(e.target.checked)} />
+              <span>{t.sectionReverse}</span>
+            </label>
+          )}
         </div>
         {view === "3d" && (
           <>
@@ -117,11 +124,13 @@ export default function VizControls({ compact = false }: { compact?: boolean }) 
                     value={volumeOpacity}
                     onChange={(e) => setVolumeOpacity(parseFloat(e.target.value))} />
                 </div>
-                <label className="row checkbox">
-                  <input type="checkbox" checked={sectionReverse}
-                    onChange={(e) => setSectionReverse(e.target.checked)} />
-                  <span>{t.sectionReverse}</span>
-                </label>
+                {!compact && (
+                  <label className="row checkbox">
+                    <input type="checkbox" checked={sectionReverse}
+                      onChange={(e) => setSectionReverse(e.target.checked)} />
+                    <span>{t.sectionReverse}</span>
+                  </label>
+                )}
               </>
             )}
           </>

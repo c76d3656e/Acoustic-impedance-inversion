@@ -354,9 +354,17 @@ a.download:hover { text-decoration: underline; }
   .viz-controls.is-compact section { margin-bottom: 8px; }
   .viz-controls.is-compact section:last-child { margin-bottom: 2px; }
   .viz-controls.is-compact .flags { margin-top: 4px; }
+  .viz-controls.is-compact .hud-checks {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 14px;
+  }
+  .viz-controls.is-compact .hud-checks .row { margin-bottom: 4px; }
   .viz-controls.is-compact .row { margin-bottom: 6px; }
   .viz-controls.is-compact .row > span { min-width: 0; }
   .viz-controls.is-compact .segmented { margin-bottom: 6px; }
+  .viz-controls.is-compact .slice-slider { padding: 2px 2px 8px; }
   .viz-hud .seg-btn { min-height: 36px; padding: 6px 6px; font-size: 12px; }
 
   .sidebar {
