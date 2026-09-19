@@ -68,7 +68,7 @@ python3 examples/run_fusion_benchmark.py --outdir results
 - `figures/fused_strength_elev_{-8,-20,-32}.png` — 水平切片
 - 四种方案的指标表（仅 MWD、仅地震、简单加权、共定位协克里金）以及 **空间盲孔** MWD 留出得分
 
-再生成本仓库跟踪的中文技术图件（融合优势对比 + 1→12 口钻孔系列）：
+再生成本仓库跟踪的中文技术图件（融合优势对比 + 1→14 口钻孔系列）：
 
 ```bash
 python3 examples/run_docs_figures.py --outdir docs/images

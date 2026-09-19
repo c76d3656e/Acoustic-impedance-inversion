@@ -141,8 +141,8 @@
       "file": "fields/fused_strength.bin",
       "scale": 1.0,
       "default_cmap": "viridis",
-      "min": 8.188430955455168,
-      "max": 79.11975334393729
+      "min": 8.580772786475883,
+      "max": 77.77145579754126
     },
     {
       "key": "mwd_strength",
@@ -151,8 +151,8 @@
       "file": "fields/mwd_strength.bin",
       "scale": 1.0,
       "default_cmap": "viridis",
-      "min": 20.668653340243395,
-      "max": 75.33485595492986
+      "min": 20.835003527511418,
+      "max": 76.78758323492
     },
     {
       "key": "seismic_strength",
@@ -161,8 +161,8 @@
       "file": "fields/seismic_strength.bin",
       "scale": 1.0,
       "default_cmap": "viridis",
-      "min": 22.718872087766623,
-      "max": 72.79537455118201
+      "min": 22.545093085820387,
+      "max": 71.4369144330634
     },
     {
       "key": "ground_truth",
@@ -192,7 +192,7 @@
       "scale": 1.0,
       "default_cmap": "magma",
       "min": 0.0,
-      "max": 6.683495382063043
+      "max": 6.801335838948936
     },
     {
       "key": "fusion_weight",
@@ -201,12 +201,12 @@
       "file": "fields/fusion_weight.bin",
       "scale": 1.0,
       "default_cmap": "magma",
-      "min": 2.2426505097428162e-14,
+      "min": 2.1649348980190553e-14,
       "max": 1.0
     }
   ],
   "boreholes_file": "boreholes.json",
-  "n_holes": 12,
+  "n_holes": 14,
   "seed": 42,
   "fusion": "ked",
   "default_field": "fused_strength",

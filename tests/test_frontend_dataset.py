@@ -68,7 +68,7 @@ def test_committed_bins_are_distinct_branches():
 def test_committed_wells_sit_in_default_face():
     manifest = json.loads((DATA / "manifest.json").read_text())
     wells = json.loads((DATA / "boreholes.json").read_text())["wells"]
-    assert len(wells) == manifest["n_holes"] == 12
+    assert len(wells) == manifest["n_holes"] == 14
     vw = manifest["view_window"]
     x0, y0 = float(vw["x0"]), float(vw["y0"])
     x1, y1 = x0 + float(vw["width"]), y0 + float(vw["height"])

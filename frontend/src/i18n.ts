@@ -17,7 +17,7 @@ export const t = {
 
   windowX: "窗口 X",
   windowY: "窗口 Y",
-  windowHint: "全块 50×80 m；12 口梅花孔布置在默认 20×50 m 工作面内。拖动滑条平移窗口。",
+  windowHint: "全块 50×80 m；14 口梅花孔布置在默认 20×50 m 工作面内。拖动滑条平移窗口。",
 
   themeLight: "亮色",
   themeDark: "暗色",

@@ -57,20 +57,22 @@ def test_subset_holes_is_nested_prefix():
 
 
 def test_plum_blossom_is_spread_not_clustered():
+    from collections import defaultdict
+
     from datasets import (
         FACE_HEIGHT, FACE_WIDTH, centered_face,
         plum_blossom_hole_indices, unique_hole_xy_indices, subset_holes,
     )
 
-    ds = generate_mine(n_holes=12, seed=42)
+    ds = generate_mine(n_holes=14, seed=42)
     pairs = unique_hole_xy_indices(ds)
-    assert len(pairs) == 12
+    assert len(pairs) == 14
     assert ds.meta.get("hole_layout") == "plum_blossom"
     assert ds.meta.get("hole_window") == (FACE_WIDTH, FACE_HEIGHT)
     xs, ys = ds.gx[pairs[:, 0]], ds.gy[pairs[:, 1]]
     x0, x1, y0, y1 = centered_face(ds.gx, ds.gy)
     fw, fh = x1 - x0, y1 - y0
-    # All 12 wells live inside the default 20×50 m working face.
+    # All 14 wells live inside the default 20×50 m working face.
     assert xs.min() >= x0 - 1e-6 and xs.max() <= x1 + 1e-6
     assert ys.min() >= y0 - 1e-6 and ys.max() <= y1 + 1e-6
     assert xs.max() - xs.min() > 0.55 * fw
@@ -79,17 +81,23 @@ def test_plum_blossom_is_spread_not_clustered():
     assert xs.min() > x0 + 0.06 * fw and xs.max() < x1 - 0.06 * fw
     assert ys.min() > y0 + 0.06 * fh and ys.max() < y1 - 0.06 * fh
     dmin = np.inf
-    for a in range(12):
-        for b in range(a + 1, 12):
+    for a in range(14):
+        for b in range(a + 1, 14):
             dmin = min(dmin, np.hypot(xs[a] - xs[b], ys[a] - ys[b]))
     assert dmin > 5.0  # not piled in one corner of the face
     # Staggered 梅花: odd rows sit at extra Y stations, not a 3×4 rectangle.
     assert len(np.unique(np.round(xs, 5))) >= 3
     assert len(np.unique(np.round(ys, 5))) >= 5
+    # Centre X-station is filled (not left with only the two mid-face wells).
+    cols = defaultdict(list)
+    for x, y in zip(xs, ys):
+        cols[round(float(x), 1)].append(float(y))
+    mid_x = sorted(cols)[len(cols) // 2]
+    assert len(cols[mid_x]) >= 4
 
-    lattice = plum_blossom_hole_indices(ds.gx, ds.gy, 12, bbox=(x0, x1, y0, y1))
-    assert len(lattice) == 12
-    assert len(set(lattice)) == 12
+    lattice = plum_blossom_hole_indices(ds.gx, ds.gy, 14, bbox=(x0, x1, y0, y1))
+    assert len(lattice) == 14
+    assert len(set(lattice)) == 14
     assert set(lattice) == set(map(tuple, pairs.tolist()))
 
     # Nested prefixes stay uniformly spread across the face (farthest-point order).

@@ -333,7 +333,7 @@ def plot_mwd_weight(ds, res, z_index, outfile, gx=None, gy=None, weight=None):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--outdir", default="docs/images")
-    parser.add_argument("--n-holes", type=int, default=12)
+    parser.add_argument("--n-holes", type=int, default=14)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--elevation", type=float, default=-20.0)
     parser.add_argument("--far-radius", type=float, default=None,

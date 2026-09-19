@@ -181,7 +181,7 @@ def write_frontend_dataset(ds, res, outdir: str, n_holes: int, seed: int) -> dic
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--outdir", default="frontend/public/data")
-    parser.add_argument("--n-holes", type=int, default=12)
+    parser.add_argument("--n-holes", type=int, default=14)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 

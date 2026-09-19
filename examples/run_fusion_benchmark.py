@@ -36,7 +36,7 @@ def nearest_index(axis, value):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--outdir", default="results")
-    parser.add_argument("--n-holes", type=int, default=12)
+    parser.add_argument("--n-holes", type=int, default=14)
     parser.add_argument("--noise", type=float, default=0.05)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--elevations", type=float, nargs="*", default=[-8, -20, -32])

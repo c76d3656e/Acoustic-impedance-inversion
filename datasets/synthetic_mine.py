@@ -2,9 +2,10 @@
 
 Generates a *single* ground-truth world in one coordinate system so that the
 MWD, seismic and UCS sources are strictly co-located -- something no public
-dataset provides.    Default scene: a compact blast block X 0-50 m, Y 0-80 m,
-  elevation 0 to -40 m (about 10 benches).  Twelve drill holes pack into a
-  centred 20×50 m working face; fusion maps crop to that window.
+dataset provides.  Default scene: a compact blast block X 0-50 m, Y 0-80 m,
+elevation 0 to -40 m (about 10 benches).  Fourteen 梅花 holes pack into a
+centred 20×50 m working face (three X-stations, with the middle column filled);
+fusion maps crop to that window.
 
 Design principles
 -----------------
@@ -149,9 +150,15 @@ def plum_blossom_hole_indices(
         y_hi = min(y_hi, float(gy[-1]))
     Lx = max(x_hi - x_lo, 1e-6)
     Ly = max(y_hi - y_lo, 1e-6)
+    # Tall narrow face (20×50 m): keep the 3-station 梅花 spacing of 12 wells
+    # and spend extra requested holes on the centre column (the two sites FPS
+    # previously dropped) instead of tightening the whole lattice.
+    n_pack = int(n_holes)
+    if Ly >= 1.6 * Lx and n_holes >= 13:
+        n_pack = 12
     dxg = abs(float(gx[1] - gx[0])) if nx > 1 else 1.0
     dyg = abs(float(gy[1] - gy[0])) if ny > 1 else 1.0
-    a0 = float(np.sqrt((Lx * Ly / float(n_holes)) * 2.0 / np.sqrt(3.0)))
+    a0 = float(np.sqrt((Lx * Ly / float(n_pack)) * 2.0 / np.sqrt(3.0)))
     # ~⅓ hole-spacing off each free face of the packing domain.  Cap at 12 %
     # so a 20×50 m working face still has room for 12 staggered wells.
     mx = min(max(0.30 * a0, 1.0 * dxg), 0.12 * Lx)
@@ -188,7 +195,7 @@ def plum_blossom_hole_indices(
         return [_snap(cx, cy)]
 
     # Hexagonal packing inside the inset: area per hole ≈ a² √3 / 2.
-    a = float(np.sqrt((lx * ly / float(n_holes)) * 2.0 / np.sqrt(3.0)))
+    a = float(np.sqrt((lx * ly / float(n_pack)) * 2.0 / np.sqrt(3.0)))
     a = max(a, 1e-6)
 
     pts: list[tuple[int, int]] = []
@@ -200,7 +207,7 @@ def plum_blossom_hole_indices(
             seen.add(key)
             pts.append(key)
 
-    min_stations = 3 if n_holes >= 6 else 2
+    min_stations = 3 if n_pack >= 6 else 2
     if ly >= lx:
         # Rows along X, holes along the long Y side; odd rows shifted by a/2.
         dx = a * np.sqrt(3.0) / 2.0
@@ -256,7 +263,7 @@ def plum_blossom_hole_indices(
 def generate_mine(
     shape: tuple[int, int, int] = (25, 40, 40),
     extent=((0.0, 50.0), (0.0, 80.0), (0.0, -40.0)),
-    n_holes: int = 12,
+    n_holes: int = 14,
     hole_sample_step: int = 1,
     seed: int = 42,
     hole_window: tuple[float, float] | None = (FACE_WIDTH, FACE_HEIGHT),
