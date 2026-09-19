@@ -42,6 +42,10 @@ def test_committed_manifest_has_ked_compare_fields():
     assert manifest["compare"]["keys"] == [
         "ground_truth", "mwd_strength", "seismic_strength", "fused_strength",
     ]
+    assert manifest["compare"]["titles_zh"][1] == "(b) 钻孔插值"
+    assert manifest["compare"]["residual_titles_zh"][1] == "(e) 钻孔残差"
+    assert manifest.get("view_window", {}).get("width") == 20
+    assert manifest.get("view_window", {}).get("height") == 50
     nx, ny, nz = manifest["grid"]["nx"], manifest["grid"]["ny"], manifest["grid"]["nz"]
     nbytes = nx * ny * nz * 4
     for key in REQUIRED_FIELDS:
@@ -59,6 +63,19 @@ def test_committed_bins_are_distinct_branches():
     assert not np.allclose(mwd, fused, atol=1e-3)
     assert not np.allclose(seis, fused, atol=1e-3)
     assert not np.allclose(mwd, seis, atol=1e-3)
+
+
+def test_committed_wells_sit_in_default_face():
+    manifest = json.loads((DATA / "manifest.json").read_text())
+    wells = json.loads((DATA / "boreholes.json").read_text())["wells"]
+    assert len(wells) == manifest["n_holes"] == 14
+    vw = manifest["view_window"]
+    x0, y0 = float(vw["x0"]), float(vw["y0"])
+    x1, y1 = x0 + float(vw["width"]), y0 + float(vw["height"])
+    xs = [w["x"] for w in wells]
+    ys = [w["y"] for w in wells]
+    assert min(xs) >= x0 - 1.0 and max(xs) <= x1 + 1.0
+    assert min(ys) >= y0 - 1.0 and max(ys) <= y1 + 1.0
 
 
 def test_committed_boreholes_have_branch_ucs():

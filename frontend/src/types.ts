@@ -28,6 +28,8 @@ export interface Manifest {
   fusion?: string;
   default_field?: string;
   compare?: CompareSpec;
+  /** Working-face crop inside the full block; the UI can pan this window. */
+  view_window?: { width: number; height: number; x0?: number; y0?: number };
 }
 
 export interface WellSample {
@@ -66,7 +68,9 @@ export type ViewMode = "2d" | "3d" | "compare";
 
 export type VolumeStyle = "voxel" | "slices";
 
-export type ExportKind = "slice" | "compare" | "profile";
+export type ExportKind = "slice" | "compare" | "profile" | "trislices";
+
+export type ThemeMode = "light" | "dark";
 
 /** A colormap defined by anchor stops; used identically in WebGL and matplotlib. */
 export interface Colormap {

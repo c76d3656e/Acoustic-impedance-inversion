@@ -1,12 +1,13 @@
 """Publication matplotlib recipes for the static frontend (Pyodide) and tests.
 
-Layout matches ``visualization.report_style``: ``aspect='auto'`` so the 50×80 m
-block fills the axes the same way as ``docs/images``, and a fixed canvas
+Layout matches ``visualization.report_style``: ``aspect='auto'`` so the 20×50 m
+working-face window fills the axes the same way as ``docs/images``, and a fixed canvas
 (no ``bbox_inches='tight'``) so PNG pixel aspect equals figsize × dpi.
 
-  * slice   — 7.2 × 5.6 in @ 150 dpi → 1080 × 840
-  * compare — (3.4×ncols + 1.2) × 6.6 in @ 150 dpi → 2220 × 990 for 4 columns
-  * profile — 5.2×n × 5.6 in @ 150 dpi → 1560 × 840 for 2 wells
+  * slice      — 7.2 × 5.6 in @ 150 dpi → 1080 × 840
+  * compare    — (3.4×ncols + 1.2) × 6.6 in @ 150 dpi → 2220 × 990 for 4 columns
+  * profile    — 5.2×n × 5.6 in @ 150 dpi → 1560 × 840 for 2 wells
+  * trislices  — 12.0 × 7.6 in @ 150 dpi → 1800 × 1140
 """
 
 from __future__ import annotations
@@ -19,9 +20,14 @@ import matplotlib
 
 matplotlib.use("Agg")
 
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib import font_manager as fm
+from matplotlib.colors import LinearSegmentedColormap, Normalize
+from matplotlib import cm
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
 SLICE_FIGSIZE = (7.2, 5.6)
 COMPARE_ROW_H = 6.6
@@ -29,7 +35,49 @@ COMPARE_COL_W = 3.4
 COMPARE_COL_PAD = 1.2
 PROFILE_PANEL_W = 5.2
 PROFILE_H = 5.6
+TRISLICES_FIGSIZE = (12.0, 7.6)
 SAVE_DPI = 150
+
+
+def _configure_fonts():
+    """Times/Liberation Serif for Latin; CJK face for Chinese glyphs."""
+    serif = None
+    for path in (
+        "/serif.ttf",
+        os.path.join(os.path.dirname(__file__), "..", "fonts", "liberation-serif.ttf"),
+        "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+    ):
+        if os.path.exists(path):
+            try:
+                fm.fontManager.addfont(path)
+                serif = fm.FontProperties(fname=path).get_name()
+                break
+            except Exception:
+                continue
+    cjk = None
+    for path in (
+        "/cjk.ttf",
+        os.path.join(os.path.dirname(__file__), "..", "fonts", "cjk-subset.otf"),
+    ):
+        if os.path.exists(path):
+            try:
+                fm.fontManager.addfont(path)
+                cjk = fm.FontProperties(fname=path).get_name()
+                break
+            except Exception:
+                continue
+    family = [serif or "Liberation Serif", cjk or "DejaVu Sans", "DejaVu Serif"]
+    plt.rcParams.update({
+        "font.family": family,
+        "mathtext.fontset": "stix",
+        "axes.unicode_minus": False,
+        "figure.facecolor": "white",
+        "savefig.facecolor": "white",
+        "axes.facecolor": "white",
+    })
+
+
+_configure_fonts()
 
 
 def _payload(p):
@@ -160,7 +208,7 @@ def render_compare(payload) -> str:
     axes[1, 0].axis("off")
     axes[1, 0].text(
         0.5, 0.55,
-        "下行：预测 $-$ 真值\n红＝估计偏高\n蓝＝估计偏低\n越浅越好",
+        "下行：预测 − 真值\n红＝估计偏高\n蓝＝估计偏低\n越浅越好",
         transform=axes[1, 0].transAxes, ha="center", va="center",
         fontsize=11, linespacing=1.6,
     )
@@ -183,7 +231,7 @@ def render_compare(payload) -> str:
         cbar0.set_label("UCS (MPa)")
     if cf1 is not None:
         cbar1 = fig.colorbar(cf1, ax=axes[1, 1:].tolist(), shrink=0.9, pad=0.02)
-        cbar1.set_label(r"预测 $-$ 真值 (MPa)")
+        cbar1.set_label("预测 − 真值 (MPa)")
     if p.get("title"):
         fig.suptitle(p["title"], fontsize=13)
     return _save_fixed(fig)
@@ -202,9 +250,9 @@ def render_profile(payload) -> str:
         w = wells[k]
         z = np.array(w["z"], dtype=float)
         ax.plot(w["ucs_true"], z, "k-", lw=2.0, label="真值 UCS")
-        ax.plot(w["ucs_seis"], z, "--", color="C1", lw=1.8, label="仅波阻抗标定")
-        ax.plot(w["ucs_mwd"], z, ":", color="C0", lw=1.8, label="MWD（孔点）")
-        ax.plot(w["ucs_fused"], z, "-", color="C2", lw=2.0, label="外漂移克里金融合")
+        ax.plot(w["ucs_seis"], z, "--", color="C1", lw=1.8, label="波阻抗插值")
+        ax.plot(w["ucs_mwd"], z, ":", color="C0", lw=1.8, label="钻孔插值")
+        ax.plot(w["ucs_fused"], z, "-", color="C2", lw=2.0, label="融合插值")
         ax.set_xlabel("UCS (MPa)")
         ax.set_title(w["title"])
         ax.grid(True, alpha=0.3)
@@ -213,4 +261,127 @@ def render_profile(payload) -> str:
             ax.set_ylabel("标高 (m)")
             ax.legend(fontsize=8, loc="best")
     fig.suptitle(p["title"], fontsize=13)
+    return _save_fixed(fig)
+
+
+def _cad_3d_axes(ax):
+    ax.set_facecolor("white")
+    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+        axis.pane.set_facecolor((1.0, 1.0, 1.0, 1.0))
+        axis.pane.set_edgecolor((0.72, 0.74, 0.78, 1.0))
+        axis.pane.set_alpha(1.0)
+        axis.line.set_color((0.45, 0.47, 0.50, 1.0))
+    ax.grid(True, color="#d5d8de", linestyle="-", linewidth=0.4)
+    ax.view_init(elev=22, azim=-58)
+
+
+def render_trislices(payload) -> str:
+    """3-D orthogonal planes + XY / XZ / YZ, white CAD background."""
+    p = _payload(payload)
+    scale = float(p.get("scale") or 1.0)
+    box = p["box"]  # [x0, x1, y0, y1, z0, z1]
+    x0, x1, y0, y1, z0, z1 = [float(v) for v in box]
+    cmap = _cmap_from_stops(p)
+    xy = _field(p["xy"]["values"], int(p["xy"]["w"]), int(p["xy"]["h"]), scale)
+    xz = _field(p["xz"]["values"], int(p["xz"]["w"]), int(p["xz"]["h"]), scale)
+    yz = _field(p["yz"]["values"], int(p["yz"]["w"]), int(p["yz"]["h"]), scale)
+    xc, yc, zc = float(p["xc"]), float(p["yc"]), float(p["zc"])
+    if "vmin" in p:
+        vmin = float(p["vmin"]) / scale
+    else:
+        vmin = float(np.nanmin(xy))
+    if "vmax" in p:
+        vmax = float(p["vmax"]) / scale
+    else:
+        vmax = float(np.nanmax(xy))
+    if vmax <= vmin:
+        vmax = vmin + 1.0
+    lev = np.linspace(vmin, vmax, 20)
+    gx = np.linspace(x0, x1, xy.shape[1])
+    gy = np.linspace(y0, y1, xy.shape[0])
+    gz = np.linspace(min(z0, z1), max(z0, z1), xz.shape[0])
+
+    fig = plt.figure(figsize=TRISLICES_FIGSIZE, facecolor="white")
+    gs = fig.add_gridspec(
+        3, 3,
+        width_ratios=[1.70, 0.20, 1.0],
+        height_ratios=[1.0, 1.0, 1.0],
+        left=0.02, right=0.90, top=0.90, bottom=0.07,
+        hspace=0.42, wspace=0.05,
+    )
+    ax3d = fig.add_subplot(gs[:, 0], projection="3d", facecolor="white")
+    ax_xy = fig.add_subplot(gs[0, 2])
+    ax_xz = fig.add_subplot(gs[1, 2])
+    ax_yz = fig.add_subplot(gs[2, 2])
+
+    norm = Normalize(vmin=vmin, vmax=vmax)
+    xx_xy, yy_xy = np.meshgrid(gx, gy)
+    xx_xz, zz_xz = np.meshgrid(gx, gz)
+    yy_yz, zz_yz = np.meshgrid(gy, gz)
+    kw = dict(rstride=1, cstride=1, linewidth=0, antialiased=False, shade=False)
+    ax3d.plot_surface(xx_xy, yy_xy, np.full_like(xx_xy, zc), facecolors=cmap(norm(xy)), **kw)
+    ax3d.plot_surface(xx_xz, np.full_like(xx_xz, yc), zz_xz, facecolors=cmap(norm(xz)), **kw)
+    ax3d.plot_surface(np.full_like(yy_yz, xc), yy_yz, zz_yz, facecolors=cmap(norm(yz)), **kw)
+    holes = p.get("boreholes") or []
+    if holes:
+        hx, hy = zip(*holes)
+        ax3d.scatter(hx, hy, [zc] * len(hx), s=12, c="k", depthshade=False)
+    _cad_3d_axes(ax3d)
+    ax3d.set_xlim(x0, x1)
+    ax3d.set_ylim(y0, y1)
+    ax3d.set_zlim(min(z0, z1), max(z0, z1))
+    try:
+        ax3d.set_box_aspect((1.0, 1.55, 1.25), zoom=1.32)
+    except TypeError:
+        try:
+            ax3d.set_box_aspect((1.0, 1.55, 1.25))
+        except Exception:
+            pass
+        ax3d.dist = 8.0
+    ax3d.set_anchor("C")
+    ax3d.tick_params(labelsize=8, pad=1)
+    ax3d.set_xticks([x0, 0.5 * (x0 + x1), x1])
+    ax3d.set_yticks([y0, 0.5 * (y0 + y1), y1])
+    ax3d.set_zticks([min(z0, z1), 0.5 * (z0 + z1), max(z0, z1)])
+    ax3d.set_xlabel("X (m)")
+    ax3d.set_ylabel("Y (m)")
+    ax3d.set_zlabel("Z (m)")
+    ax3d.set_title(f"三正交切面  X={xc:.0f} m, Y={yc:.0f} m, Z={zc:.0f} m", pad=6)
+
+    ext_xy = p["xy"]["extent"]
+    xs_xy = np.linspace(ext_xy[0], ext_xy[1], xy.shape[1])
+    ys_xy = np.linspace(ext_xy[2], ext_xy[3], xy.shape[0])
+    ax_xy.contourf(xs_xy, ys_xy, xy, levels=lev, cmap=cmap, extend="both")
+    ax_xy.contour(xs_xy, ys_xy, xy, levels=lev, colors="k", linewidths=0.3,
+                  linestyles="--", alpha=0.4)
+    _holes(ax_xy, holes)
+    _style_ax(ax_xy, ext_xy, f"XY  标高 {zc:.0f} m", "X (m)", "Y (m)")
+
+    ext_xz = p["xz"]["extent"]
+    xs_xz = np.linspace(ext_xz[0], ext_xz[1], xz.shape[1])
+    zs_xz = np.linspace(ext_xz[2], ext_xz[3], xz.shape[0])
+    ax_xz.contourf(xs_xz, zs_xz, xz, levels=lev, cmap=cmap, extend="both")
+    ax_xz.contour(xs_xz, zs_xz, xz, levels=lev, colors="k", linewidths=0.3,
+                  linestyles="--", alpha=0.4)
+    _style_ax(ax_xz, ext_xz, f"XZ  Y={yc:.0f} m",
+              p["xz"].get("horizLabel", "X (m)"), p["xz"].get("vertLabel", "Z (m)"))
+
+    ext_yz = p["yz"]["extent"]
+    ys_yz = np.linspace(ext_yz[0], ext_yz[1], yz.shape[1])
+    zs_yz = np.linspace(ext_yz[2], ext_yz[3], yz.shape[0])
+    ax_yz.contourf(ys_yz, zs_yz, yz, levels=lev, cmap=cmap, extend="both")
+    ax_yz.contour(ys_yz, zs_yz, yz, levels=lev, colors="k", linewidths=0.3,
+                  linestyles="--", alpha=0.4)
+    _style_ax(ax_yz, ext_yz, f"YZ  X={xc:.0f} m",
+              p["yz"].get("horizLabel", "Y (m)"), p["yz"].get("vertLabel", "Z (m)"))
+
+    ax_xy.locator_params(nbins=4)
+    ax_xz.locator_params(nbins=4)
+    ax_yz.locator_params(nbins=4)
+    sm = cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=[ax_xy, ax_xz, ax_yz], shrink=0.82, pad=0.04)
+    cbar.set_label(p.get("unit") or "UCS (MPa)")
+    if p.get("title"):
+        fig.suptitle(p["title"], fontsize=13)
     return _save_fixed(fig)

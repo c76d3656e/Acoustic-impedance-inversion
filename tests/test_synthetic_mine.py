@@ -57,36 +57,52 @@ def test_subset_holes_is_nested_prefix():
 
 
 def test_plum_blossom_is_spread_not_clustered():
-    from datasets import plum_blossom_hole_indices, unique_hole_xy_indices, subset_holes
+    from collections import defaultdict
 
-    ds = generate_mine(n_holes=12, seed=42)
+    from datasets import (
+        FACE_HEIGHT, FACE_WIDTH, centered_face,
+        plum_blossom_hole_indices, unique_hole_xy_indices, subset_holes,
+    )
+
+    ds = generate_mine(n_holes=14, seed=42)
     pairs = unique_hole_xy_indices(ds)
-    assert len(pairs) == 12
+    assert len(pairs) == 14
     assert ds.meta.get("hole_layout") == "plum_blossom"
+    assert ds.meta.get("hole_window") == (FACE_WIDTH, FACE_HEIGHT)
     xs, ys = ds.gx[pairs[:, 0]], ds.gy[pairs[:, 1]]
-    assert xs.max() - xs.min() > 0.55 * (ds.gx[-1] - ds.gx[0])
-    assert ys.max() - ys.min() > 0.55 * (ds.gy[-1] - ds.gy[0])
-    Lx = float(ds.gx[-1] - ds.gx[0])
-    Ly = float(ds.gy[-1] - ds.gy[0])
-    # Interior: leave the free-face strip empty (not parked on the edges).
-    assert xs.min() > 0.10 * Lx and xs.max() < 0.90 * Lx
-    assert ys.min() > 0.10 * Ly and ys.max() < 0.90 * Ly
+    x0, x1, y0, y1 = centered_face(ds.gx, ds.gy)
+    fw, fh = x1 - x0, y1 - y0
+    # All 14 wells live inside the default 20×50 m working face.
+    assert xs.min() >= x0 - 1e-6 and xs.max() <= x1 + 1e-6
+    assert ys.min() >= y0 - 1e-6 and ys.max() <= y1 + 1e-6
+    assert xs.max() - xs.min() > 0.55 * fw
+    assert ys.max() - ys.min() > 0.55 * fh
+    # Interior of the face: leave a strip empty (not parked on the window edge).
+    assert xs.min() > x0 + 0.06 * fw and xs.max() < x1 - 0.06 * fw
+    assert ys.min() > y0 + 0.06 * fh and ys.max() < y1 - 0.06 * fh
     dmin = np.inf
-    for a in range(12):
-        for b in range(a + 1, 12):
+    for a in range(14):
+        for b in range(a + 1, 14):
             dmin = min(dmin, np.hypot(xs[a] - xs[b], ys[a] - ys[b]))
-    assert dmin > 8.0  # not piled in one corner
+    assert dmin > 5.0  # not piled in one corner of the face
     # Staggered 梅花: odd rows sit at extra Y stations, not a 3×4 rectangle.
     assert len(np.unique(np.round(xs, 5))) >= 3
     assert len(np.unique(np.round(ys, 5))) >= 5
+    # Centre X-station is filled (not left with only the two mid-face wells).
+    cols = defaultdict(list)
+    for x, y in zip(xs, ys):
+        cols[round(float(x), 1)].append(float(y))
+    mid_x = sorted(cols)[len(cols) // 2]
+    assert len(cols[mid_x]) >= 4
 
-    lattice = plum_blossom_hole_indices(ds.gx, ds.gy, 12)
-    assert len(lattice) == 12
-    assert len(set(lattice)) == 12
+    lattice = plum_blossom_hole_indices(ds.gx, ds.gy, 14, bbox=(x0, x1, y0, y1))
+    assert len(lattice) == 14
+    assert len(set(lattice)) == 14
+    assert set(lattice) == set(map(tuple, pairs.tolist()))
 
-    # Nested prefixes stay uniformly spread (farthest-point order).
+    # Nested prefixes stay uniformly spread across the face (farthest-point order).
     sub = subset_holes(ds, 4)
     sp = unique_hole_xy_indices(sub)
     sxs, sys = ds.gx[sp[:, 0]], ds.gy[sp[:, 1]]
-    assert sxs.max() - sxs.min() > 0.40 * (ds.gx[-1] - ds.gx[0])
-    assert sys.max() - sys.min() > 0.40 * (ds.gy[-1] - ds.gy[0])
+    assert sxs.max() - sxs.min() > 0.40 * fw
+    assert sys.max() - sys.min() > 0.40 * fh

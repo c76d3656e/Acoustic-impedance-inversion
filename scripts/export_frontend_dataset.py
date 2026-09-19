@@ -19,7 +19,7 @@ import os
 
 import numpy as np
 
-from datasets import generate_mine, unique_hole_xy_indices
+from datasets import generate_mine, unique_hole_xy_indices, centered_face
 from fusion import run_fusion_pipeline
 
 # Live compare view + Pyodide fusion-advantage figure (matches docs/images).
@@ -31,16 +31,17 @@ COMPARE_KEYS = (
 )
 COMPARE_TITLES = (
     "(a) 强度真值",
-    "(b) 仅钻孔插值",
-    "(c) 仅波阻抗标定",
-    "(d) 外漂移克里金融合",
+    "(b) 钻孔插值",
+    "(c) 波阻抗插值",
+    "(d) 融合插值",
 )
 COMPARE_RESIDUAL_TITLES = (
     "",
-    "(e) 仅钻孔 − 真值",
-    "(f) 仅波阻抗 − 真值",
-    "(g) 融合 − 真值",
+    "(e) 钻孔残差",
+    "(f) 波阻抗残差",
+    "(g) 融合残差",
 )
+VIEW_WINDOW = {"width": 20, "height": 50}
 
 
 def _write_field(path: str, vol: np.ndarray) -> None:
@@ -140,6 +141,12 @@ def write_frontend_dataset(ds, res, outdir: str, n_holes: int, seed: int) -> dic
         print(f"   field {key:18s} range {vol.min():.4g}..{vol.max():.4g}")
 
     wells = wells_from_result(ds, res)
+    bbox = ds.meta.get("hole_bbox") or centered_face(ds.gx, ds.gy)
+    view_window = {
+        **VIEW_WINDOW,
+        "x0": float(bbox[0]),
+        "y0": float(bbox[2]),
+    }
     manifest = {
         "title_zh": "露天矿波阻抗与岩石强度三维可视化",
         "grid": {"nx": nx, "ny": ny, "nz": nz},
@@ -161,6 +168,7 @@ def write_frontend_dataset(ds, res, outdir: str, n_holes: int, seed: int) -> dic
             "titles_zh": list(COMPARE_TITLES),
             "residual_titles_zh": list(COMPARE_RESIDUAL_TITLES),
         },
+        "view_window": dict(view_window),
     }
     with open(os.path.join(outdir, "manifest.json"), "w") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
@@ -173,7 +181,7 @@ def write_frontend_dataset(ds, res, outdir: str, n_holes: int, seed: int) -> dic
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--outdir", default="frontend/public/data")
-    parser.add_argument("--n-holes", type=int, default=12)
+    parser.add_argument("--n-holes", type=int, default=14)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 

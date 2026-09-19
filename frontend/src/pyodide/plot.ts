@@ -35,24 +35,31 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import font_manager as fm
 
-_name = 'DejaVu Sans'
+_serif = 'DejaVu Serif'
+_cjk = 'DejaVu Sans'
+try:
+    fm.fontManager.addfont('/serif.ttf')
+    _serif = fm.FontProperties(fname='/serif.ttf').get_name()
+except Exception as e:
+    print('serif font not registered:', e)
 try:
     fm.fontManager.addfont('/cjk.ttf')
-    _name = fm.FontProperties(fname='/cjk.ttf').get_name()
+    _cjk = fm.FontProperties(fname='/cjk.ttf').get_name()
 except Exception as e:
     print('CJK font not registered:', e)
 
-# Nature-style publication defaults.
 plt.rcParams.update({
     'figure.dpi': 110, 'savefig.dpi': 150, 'font.size': 11,
     'axes.linewidth': 0.8, 'axes.titlesize': 12, 'axes.labelsize': 11,
     'xtick.direction': 'out', 'ytick.direction': 'out',
     'xtick.major.width': 0.8, 'ytick.major.width': 0.8,
     'axes.spines.top': False, 'axes.spines.right': False,
-    'figure.facecolor': 'white',
-    'font.sans-serif': [_name, 'DejaVu Sans'], 'axes.unicode_minus': False,
+    'figure.facecolor': 'white', 'axes.facecolor': 'white',
+    'font.family': [_serif, _cjk, 'DejaVu Serif'],
+    'mathtext.fontset': 'stix',
+    'axes.unicode_minus': False,
 })
-_name
+_serif
 `;
 
 async function ensurePyodide(onStatus?: (s: string) => void): Promise<any> {
@@ -72,6 +79,15 @@ async function ensurePyodide(onStatus?: (s: string) => void): Promise<any> {
       }
     } catch {
       /* font optional */
+    }
+    try {
+      const resp = await fetch(`${base}fonts/liberation-serif.ttf`);
+      if (resp.ok) {
+        const buf = new Uint8Array(await resp.arrayBuffer());
+        py.FS.writeFile("/serif.ttf", buf);
+      }
+    } catch {
+      /* serif optional */
     }
     await py.runPythonAsync(SETUP_PY);
     return py;
@@ -130,6 +146,33 @@ export interface ProfileParams {
   wells: ProfileWell[];
 }
 
+export interface SlicePanel {
+  values: Float32Array;
+  w: number;
+  h: number;
+  extent: [number, number, number, number];
+  horizLabel: string;
+  vertLabel: string;
+}
+
+export interface TrislicesParams {
+  title: string;
+  unit: string;
+  scale: number;
+  vmin: number;
+  vmax: number;
+  colormap: Colormap;
+  reverse: boolean;
+  boreholes: Array<[number, number]>;
+  xc: number;
+  yc: number;
+  zc: number;
+  box: [number, number, number, number, number, number];
+  xy: SlicePanel;
+  xz: SlicePanel;
+  yz: SlicePanel;
+}
+
 let figuresPromise: Promise<void> | null = null;
 
 async function ensureFigures(py: any, onStatus?: (s: string) => void): Promise<void> {
@@ -144,7 +187,7 @@ async function ensureFigures(py: any, onStatus?: (s: string) => void): Promise<v
 }
 
 async function runNamed(
-  fn: "render_slice" | "render_compare" | "render_profile",
+  fn: "render_slice" | "render_compare" | "render_profile" | "render_trislices",
   payload: unknown,
   onStatus?: (s: string) => void,
 ): Promise<string> {
@@ -207,4 +250,33 @@ export async function renderProfileFigure(
   onStatus?: (s: string) => void,
 ): Promise<string> {
   return runNamed("render_profile", params, onStatus);
+}
+
+function packSlice(s: SlicePanel) {
+  return {
+    values: Array.from(s.values),
+    w: s.w, h: s.h, extent: s.extent,
+    horizLabel: s.horizLabel, vertLabel: s.vertLabel,
+  };
+}
+
+export async function renderTrislicesFigure(
+  params: TrislicesParams,
+  onStatus?: (s: string) => void,
+): Promise<string> {
+  return runNamed("render_trislices", {
+    title: params.title,
+    unit: params.unit,
+    scale: params.scale,
+    vmin: params.vmin,
+    vmax: params.vmax,
+    reverse: params.reverse,
+    cmapStops: params.colormap.stops,
+    boreholes: params.boreholes,
+    xc: params.xc, yc: params.yc, zc: params.zc,
+    box: params.box,
+    xy: packSlice(params.xy),
+    xz: packSlice(params.xz),
+    yz: packSlice(params.yz),
+  }, onStatus);
 }

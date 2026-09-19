@@ -4,7 +4,8 @@ import clsx from "clsx";
 import { useShallow } from "zustand/react/shallow";
 import { useStore } from "../store";
 import { extractSlice } from "../viz/slice";
-import { renderCompareFigure, renderFigure, renderProfileFigure } from "../pyodide/plot";
+import { cropWindow, wellInCrop } from "../viz/window";
+import { renderCompareFigure, renderFigure, renderProfileFigure, renderTrislicesFigure } from "../pyodide/plot";
 import { t } from "../i18n";
 import { DEFAULT_COMPARE_KEYS } from "../types";
 import type { ExportKind } from "../types";
@@ -26,6 +27,8 @@ export default function FigureExport() {
   const view = useStore((s) => s.view);
   const field = useStore((s) => s.currentField());
   const ensureFields = useStore((s) => s.ensureFields);
+  const winX0 = useStore((s) => s.winX0);
+  const winY0 = useStore((s) => s.winY0);
   const [kind, setKind] = useState<ExportKind>(view === "compare" ? "compare" : "slice");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -42,6 +45,7 @@ export default function FigureExport() {
 
   const hint = kind === "compare" ? t.exportHintCompare
     : kind === "profile" ? t.exportHintProfile
+    : kind === "trislices" ? t.exportHintTrislices
     : t.exportHint;
 
   const onExport = async () => {
@@ -49,12 +53,16 @@ export default function FigureExport() {
     setBusy(true);
     setPng(null);
     try {
+      const crop = cropWindow(manifest, winX0, winY0);
       const coord = manifest.axes[axis][sliceIndex[axis]] ?? 0;
       const where = axis === "z"
         ? `${coord.toFixed(0)} m 标高`
         : `${axis.toUpperCase()}=${coord.toFixed(0)} m`;
+      const winWells = wells.filter((w) => wellInCrop(w, crop));
       const boreholes: Array<[number, number]> =
-        axis === "z" && showBoreholes ? wells.map((w) => [w.x, w.y]) : [];
+        showBoreholes ? winWells.map((w) => [w.x, w.y]) : [];
+      const lx = (crop.x1 - crop.x0).toFixed(0);
+      const ly = (crop.y1 - crop.y0).toFixed(0);
 
       if (kind === "compare") {
         const keys = manifest.compare?.keys ?? [...DEFAULT_COMPARE_KEYS];
@@ -62,13 +70,13 @@ export default function FigureExport() {
         const latest = useStore.getState().fields;
         const truth = latest[keys[0]];
         if (!truth) throw new Error("对比场未加载");
-        const slice0 = extractSlice(truth, manifest, axis, sliceIndex[axis]);
+        const slice0 = extractSlice(truth, manifest, axis, sliceIndex[axis], crop);
         const titles = manifest.compare?.titles_zh ?? [];
         const resTitles = manifest.compare?.residual_titles_zh ?? [];
         const panels = keys.map((k, i) => {
           const vol = latest[k];
           if (!vol) throw new Error(`缺少数据场 ${k}`);
-          const sl = extractSlice(vol, manifest, axis, sliceIndex[axis]);
+          const sl = extractSlice(vol, manifest, axis, sliceIndex[axis], crop);
           return {
             title: titles[i] ?? vol.meta.name_zh,
             residualTitle: (resTitles[i] ?? "").replace("−", "$-$") || vol.meta.name_zh,
@@ -81,12 +89,12 @@ export default function FigureExport() {
           extent: slice0.extent,
           horizLabel: slice0.horiz.label,
           vertLabel: slice0.vert.label,
-          title: `${t.compareSuptitle}（${where}，${manifest.n_holes} 口钻孔，50×80 m）`,
+          title: `${t.compareSuptitle}（${where}，${manifest.n_holes} 口钻孔，${lx}×${ly} m）`,
           vmin: truth.meta.min,
           vmax: truth.meta.max,
           scale: truth.meta.scale,
           panels,
-          boreholes,
+          boreholes: axis === "z" ? boreholes : [],
           colormap,
           reverse,
         }, setStatus);
@@ -115,9 +123,36 @@ export default function FigureExport() {
         }, setStatus);
         setPng(url);
         setFilename("along_hole_profiles.png");
+      } else if (kind === "trislices") {
+        if (!field) return;
+        const xy = extractSlice(field, manifest, "z", sliceIndex.z, crop);
+        const xz = extractSlice(field, manifest, "y", sliceIndex.y, crop);
+        const yz = extractSlice(field, manifest, "x", sliceIndex.x, crop);
+        const url = await renderTrislicesFigure({
+          title: `${field.meta.name_zh} 三正交切面（${lx}×${ly} m 工作面）`,
+          unit: field.meta.unit,
+          scale: field.meta.scale,
+          vmin: field.meta.min,
+          vmax: field.meta.max,
+          colormap,
+          reverse,
+          boreholes,
+          xc: manifest.axes.x[sliceIndex.x] ?? 0,
+          yc: manifest.axes.y[sliceIndex.y] ?? 0,
+          zc: manifest.axes.z[sliceIndex.z] ?? 0,
+          box: [crop.x0, crop.x1, crop.y0, crop.y1, manifest.extent.z[1], manifest.extent.z[0]],
+          xy: { values: xy.values, w: xy.w, h: xy.h, extent: xy.extent,
+            horizLabel: xy.horiz.label, vertLabel: xy.vert.label },
+          xz: { values: xz.values, w: xz.w, h: xz.h, extent: xz.extent,
+            horizLabel: xz.horiz.label, vertLabel: xz.vert.label },
+          yz: { values: yz.values, w: yz.w, h: yz.h, extent: yz.extent,
+            horizLabel: yz.horiz.label, vertLabel: yz.vert.label },
+        }, setStatus);
+        setPng(url);
+        setFilename(`${field.meta.key}_trislices.png`);
       } else {
         if (!field) return;
-        const slice = extractSlice(field, manifest, axis, sliceIndex[axis]);
+        const slice = extractSlice(field, manifest, axis, sliceIndex[axis], crop);
         const url = await renderFigure(
           {
             values: slice.values,
@@ -131,7 +166,7 @@ export default function FigureExport() {
             scale: field.meta.scale,
             colormap,
             reverse,
-            boreholes,
+            boreholes: axis === "z" ? boreholes : [],
           },
           setStatus,
         );
@@ -153,6 +188,7 @@ export default function FigureExport() {
           ["slice", t.exportKindSlice],
           ["compare", t.exportKindCompare],
           ["profile", t.exportKindProfile],
+          ["trislices", t.exportKindTrislices],
         ] as Array<[ExportKind, string]>).map(([k, label]) => (
           <button
             key={k}

@@ -13,6 +13,15 @@ export const t = {
   panelWells: "钻孔（多井）",
   panelExport: "出图（本地 matplotlib）",
   panelView: "视图",
+  panelWindow: "工作面窗口",
+
+  windowX: "窗口 X",
+  windowY: "窗口 Y",
+  windowHint: "全块 50×80 m；14 口梅花孔布置在默认 20×50 m 工作面内。拖动滑条平移窗口。",
+
+  themeLight: "亮色",
+  themeDark: "暗色",
+  themeToggle: "外观",
 
   axis: "切片方向",
   axisX: "X 切片（YZ 面）",
@@ -45,13 +54,15 @@ export const t = {
   exportKindSlice: "当前切片",
   exportKindCompare: "融合对比",
   exportKindProfile: "沿孔剖面",
+  exportKindTrislices: "三维三切面",
   exportButton: "生成出版级图片（Nature 风格）",
   exporting: "正在本地渲染…",
   download: "下载 PNG",
   natureStyle: "Nature 风格优化",
   exportHint: "根据当前所选数据场、切片位置与配色，在本地生成带中文标注的高分辨率图片。",
-  exportHintCompare: "与文档相同的 2×4 图：真值 / 仅钻孔 / 仅波阻抗 / 融合用当前配色；下行残差保持红蓝。",
-  exportHintProfile: "沿孔剖面：真值、仅钻孔、仅波阻抗标定与外漂移克里金融合（孔上钉回硬数据）。",
+  exportHintCompare: "与文档相同的 2×4 图：真值 / 钻孔插值 / 波阻抗插值 / 融合插值；下行残差为钻孔残差 / 波阻抗残差 / 融合残差。",
+  exportHintProfile: "沿孔剖面：真值、钻孔插值、波阻抗插值与融合插值（孔上钉回硬数据）。",
+  exportHintTrislices: "当前工作面的三维三正交切面（XY / XZ / YZ），白底便于截图。",
 
   wellSelect: "选择钻孔",
   wellLogTitle: "沿孔测井曲线",

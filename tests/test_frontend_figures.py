@@ -67,9 +67,9 @@ def _compare_payload(truth, mwd, seis, fused, **extra):
         "boreholes": [[10.0, 10.0], [40.0, 40.0]],
         "panels": [
             {"title": "(a) 强度真值", "residualTitle": "", "values": truth.tolist()},
-            {"title": "(b) 仅钻孔插值", "residualTitle": "(e) 仅钻孔 $-$ 真值", "values": mwd.tolist()},
-            {"title": "(c) 仅波阻抗标定", "residualTitle": "(f) 仅波阻抗 $-$ 真值", "values": seis.tolist()},
-            {"title": "(d) 外漂移克里金融合", "residualTitle": "(g) 融合 $-$ 真值", "values": fused.tolist()},
+            {"title": "(b) 钻孔插值", "residualTitle": "(e) 钻孔残差", "values": mwd.tolist()},
+            {"title": "(c) 波阻抗插值", "residualTitle": "(f) 波阻抗残差", "values": seis.tolist()},
+            {"title": "(d) 融合插值", "residualTitle": "(g) 融合残差", "values": fused.tolist()},
         ],
     }
     payload.update(extra)
@@ -134,3 +134,32 @@ def test_profile_png_matches_docs_canvas():
     b64 = mod.render_profile({"title": "沿孔剖面", "wells": [well, well]})
     w, h = _png_wh(b64)
     assert (w, h) == (1560, 840)
+
+
+def test_trislices_png_fixed_canvas():
+    mod = _load()
+    nx, ny, nz = 10, 12, 8
+    xy = _origin_upper(nx, ny, lambda ix, iy: 30 + ix + 0.2 * iy)
+    xz = _origin_upper(nx, nz, lambda ix, iz: 30 + ix + 0.3 * iz)
+    yz = _origin_upper(ny, nz, lambda iy, iz: 30 + iy + 0.3 * iz)
+    b64 = mod.render_trislices({
+        "title": "三正交切面",
+        "unit": "MPa", "scale": 1.0,
+        "vmin": 20.0, "vmax": 80.0,
+        "reverse": False,
+        "cmapStops": [
+            {"pos": 0.0, "color": [68, 1, 84]},
+            {"pos": 1.0, "color": [253, 231, 37]},
+        ],
+        "boreholes": [[5.0, 10.0]],
+        "xc": 10.0, "yc": 25.0, "zc": -20.0,
+        "box": [0.0, 20.0, 0.0, 50.0, -40.0, 0.0],
+        "xy": {"values": xy.tolist(), "w": nx, "h": ny, "extent": [0, 20, 0, 50],
+               "horizLabel": "X (m)", "vertLabel": "Y (m)"},
+        "xz": {"values": xz.tolist(), "w": nx, "h": nz, "extent": [0, 20, -40, 0],
+               "horizLabel": "X (m)", "vertLabel": "Z (m)"},
+        "yz": {"values": yz.tolist(), "w": ny, "h": nz, "extent": [0, 50, -40, 0],
+               "horizLabel": "Y (m)", "vertLabel": "Z (m)"},
+    })
+    w, h = _png_wh(b64)
+    assert (w, h) == (1800, 1140)
