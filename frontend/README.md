@@ -12,7 +12,7 @@ functions).
 - **融合对比**: 当前切片上并排真值 / MWD / 地震 UCS / 融合，下行预测−真值热力图（与文档 `fusion_advantage` 同一套图）。
 - **X / Y / Z 切片** with a draggable slice-position slider (live update) and a
   hover value readout.
-- **三维视图 (WebGL2)**: 与二维/出图共用同一组切片控制；三向正交切片贴图 + 钻孔轨迹，轨道旋转。
+- **三维视图 (WebGL2)**: 默认体素渲染，可切到三向正交切片；与二维/出图共用同一组切片控制。
 - **钻孔（多井）**: well selector with along-hole logs (V, N, M, F) and strength
   curves (true / MWD / seismic / fused UCS); drill-hole markers on slices.
 - **配色方案**: presets (Viridis/Magma/Plasma/Turbo/Jet) + a **custom strength
@@ -21,7 +21,7 @@ functions).
 - **出图（本地 matplotlib）**: 当前切片、融合对比 2×4、沿孔剖面，均可在浏览器内生成中文出版图并下载 PNG。
 - **X / Y / Z 切片** with a draggable slice-position slider (live update) and a
   hover value readout.
-- **三维视图 (WebGL2)**: 与二维/出图共用同一组切片控制；三向正交切片贴图 + 钻孔轨迹，轨道旋转。
+- **三维视图 (WebGL2)**: 默认体素渲染，可切到三向正交切片；与二维/出图共用同一组切片控制。
 - **钻孔（多井）**: well selector with along-hole logs (V, N, M, F) and strength
   curves (predicted vs. true UCS); drill-hole markers on slices.
 - **配色方案**: presets (Viridis/Magma/Plasma/Turbo/Jet) + a **custom strength

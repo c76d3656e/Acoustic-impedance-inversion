@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Colormap, FieldVolume, Manifest, SliceAxis, ViewMode, Well } from "./types";
+import type { Colormap, FieldVolume, Manifest, SliceAxis, ViewMode, VolumeStyle, Well } from "./types";
 import { DEFAULT_COMPARE_KEYS } from "./types";
 import { loadField, loadManifest, loadWells } from "./data/loader";
 import { PRESETS, DEFAULT_CUSTOM } from "./viz/colormaps";
@@ -14,6 +14,9 @@ interface AppState {
   colormap: Colormap;
   reverse: boolean;
   view: ViewMode;
+  volumeStyle: VolumeStyle;
+  volumeOpacity: number;
+  sectionReverse: boolean;
   showBoreholes: boolean;
   selectedWell: string | null;
   error: string | null;
@@ -27,6 +30,9 @@ interface AppState {
   setColormap: (c: Colormap) => void;
   setReverse: (r: boolean) => void;
   setView: (v: ViewMode) => void;
+  setVolumeStyle: (v: VolumeStyle) => void;
+  setVolumeOpacity: (v: number) => void;
+  setSectionReverse: (b: boolean) => void;
   setShowBoreholes: (b: boolean) => void;
   setSelectedWell: (id: string | null) => void;
   currentField: () => FieldVolume | null;
@@ -48,6 +54,9 @@ export const useStore = create<AppState>((set, get) => ({
   colormap: PRESETS[0],
   reverse: false,
   view: "2d",
+  volumeStyle: "voxel",
+  volumeOpacity: 0.45,
+  sectionReverse: false,
   showBoreholes: true,
   selectedWell: null,
   error: null,
@@ -120,6 +129,9 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
   setShowBoreholes: (b) => set({ showBoreholes: b }),
+  setVolumeStyle: (v) => set({ volumeStyle: v }),
+  setVolumeOpacity: (v) => set({ volumeOpacity: v }),
+  setSectionReverse: (b) => set({ sectionReverse: b }),
   setSelectedWell: (id) => set({ selectedWell: id }),
   currentField: () => get().fields[get().fieldKey] ?? null,
 }));
