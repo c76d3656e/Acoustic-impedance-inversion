@@ -110,6 +110,8 @@ export interface CompareParams {
   vmin: number;
   vmax: number;
   scale: number;
+  colormap: Colormap;
+  reverse: boolean;
   panels: ComparePanel[]; // [truth, mwd, seis, fused]
   boreholes: Array<[number, number]>;
 }
@@ -189,6 +191,8 @@ export async function renderCompareFigure(
     vmin: params.vmin,
     vmax: params.vmax,
     scale: params.scale,
+    reverse: params.reverse,
+    cmapStops: params.colormap.stops,
     panels: params.panels.map((m) => ({
       title: m.title,
       residualTitle: m.residualTitle,

@@ -81,6 +81,9 @@ def _field(values, w, h, scale):
 
 
 def _cmap_from_stops(p):
+    if not p.get("cmapStops"):
+        name = "viridis_r" if p.get("reverse") else "viridis"
+        return plt.get_cmap(name)
     stops = sorted(p["cmapStops"], key=lambda s: s["pos"])
     pairs = [(s["pos"], tuple(c / 255.0 for c in s["color"])) for s in stops]
     if p.get("reverse"):
@@ -143,10 +146,11 @@ def render_compare(payload) -> str:
     )
     titles_top = [panels[0]["title"]] + [m["title"] for m in panels[1:]]
     vols_top = [truth] + fields
+    field_cmap = _cmap_from_stops(p)
     cf0 = None
     for c, (vol, title) in enumerate(zip(vols_top, titles_top)):
         ax = axes[0, c]
-        cf0 = ax.contourf(xs, ys, vol, levels=lev, cmap="viridis", extend="both")
+        cf0 = ax.contourf(xs, ys, vol, levels=lev, cmap=field_cmap, extend="both")
         ax.contour(xs, ys, vol, levels=lev, colors="k", linewidths=0.3,
                    linestyles="--", alpha=0.4)
         _holes(ax, p.get("boreholes") or [])

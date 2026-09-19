@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import clsx from "clsx";
 import { useStore } from "../store";
-import { PRESETS, RDBU, buildLUT } from "../viz/colormaps";
+import { RDBU, buildLUT } from "../viz/colormaps";
 import { drawScaled, extractSlice, sliceToImageData } from "../viz/slice";
 import type { Slice2D } from "../viz/slice";
 import { DEFAULT_COMPARE_KEYS } from "../types";
@@ -142,6 +142,8 @@ export default function CompareView2D() {
   const setFieldKey = useStore((s) => s.setFieldKey);
   const setView = useStore((s) => s.setView);
   const ensureFields = useStore((s) => s.ensureFields);
+  const colormap = useStore((s) => s.colormap);
+  const reverse = useStore((s) => s.reverse);
 
   const keys = manifest?.compare?.keys ?? DEFAULT_COMPARE_KEYS;
   const titles = manifest?.compare?.titles_zh;
@@ -151,7 +153,7 @@ export default function CompareView2D() {
     void ensureFields([...keys]);
   }, [ensureFields, keys]);
 
-  const viridis = useMemo(() => buildLUT(PRESETS.find((p) => p.key === "viridis")!), []);
+  const fieldLut = useMemo(() => buildLUT(colormap, reverse), [colormap, reverse]);
   const rdbu = useMemo(() => buildLUT(RDBU), []);
 
   const slices = useMemo(() => {
@@ -206,7 +208,7 @@ export default function CompareView2D() {
             key={`f-${keys[i]}`}
             title={titles?.[i] ?? fields[keys[i]]?.meta.name_zh ?? keys[i]}
             slice={s}
-            lut={viridis}
+            lut={fieldLut}
             vmin={vmin}
             vmax={vmax}
             wells={holeXY}
@@ -214,7 +216,7 @@ export default function CompareView2D() {
             onClick={() => openField(keys[i])}
           />
         ))}
-        <Colorbar lut={viridis} vmin={vmin} vmax={vmax} unit="UCS (MPa)" />
+        <Colorbar lut={fieldLut} vmin={vmin} vmax={vmax} unit="UCS (MPa)" />
       </div>
       <div className="compare-row">
         <div className="compare-cell legend-cell">

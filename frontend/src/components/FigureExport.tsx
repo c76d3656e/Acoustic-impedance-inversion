@@ -87,6 +87,8 @@ export default function FigureExport() {
           scale: truth.meta.scale,
           panels,
           boreholes,
+          colormap,
+          reverse,
         }, setStatus);
         setPng(url);
         setFilename("fusion_advantage.png");

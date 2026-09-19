@@ -9,7 +9,7 @@ functions).
 ## Features
 
 - **数据场切换**: 外漂移克里金融合、仅钻孔克里金、波阻抗标定 UCS、真值、波阻抗反演、融合不确定性、钻孔权重。
-- **融合对比**: 当前切片上并排真值 / MWD / 地震 UCS / 融合，下行预测−真值热力图（与文档 `fusion_advantage` 同一套图）。
+- **融合对比**: 当前切片上并排真值 / MWD / 地震 UCS / 融合（共用左侧配色），下行预测−真值热力图保持红蓝（与文档 `fusion_advantage` 同一套图）。
 - **X / Y / Z 切片** with a draggable slice-position slider (live update) and a
   hover value readout.
 - **三维视图 (WebGL2)**: three intersecting textured slice planes + strength-
