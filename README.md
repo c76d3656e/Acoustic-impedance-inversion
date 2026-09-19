@@ -1,9 +1,9 @@
 # MWD–地震 物理约束岩石强度融合
 
-通过融合两路**独立反演、互补观测**的信息，为露天矿爆破/岩体刻画构建三维岩石强度场 \(S(x,y,z)\)：
+通过融合两路**独立反演、互补观测**的信息，为露天矿爆破/岩体刻画构建三维岩石强度场 $S(x,y,z)$：
 
-- **MWD**（随钻测量）——钻孔沿线、分辨率高的力学响应 → 单轴抗压强度 UCS。
-- **三维地震**——区域连续的结构信息 → 波阻抗 \(\mathrm{AI}=\rho\cdot V_p\)。
+- **MWD**（随钻测量）——钻孔沿线、分辨率高的力学响应 → 单轴抗压强度 UCS。Teale 比能与强度单调相关；露天矿爆破孔 MWD 用同一类指标刻画岩性。
+- **三维地震**——区域连续的结构信息 → 波阻抗 $\mathrm{AI}=\rho V_p$。特征阻抗与 UCS 相关，但必须就地标定，不能当通用标尺。
 
 ```
         MWD ─▶ PG-GPR UCS ─▶ 三维回归克里金 ─▶ S_MWD, σ_MWD
@@ -21,7 +21,7 @@
 
 ## 为什么用共定位协克里金，而不是把两张图画平均？
 
-稀疏准的钻孔和全区连续的地震，是储层建模里同一类问题。Xu 等（SPE 24742）的做法是**外漂移克里金**（井为硬数据，地震为漂移）；Doyen 等（SPE 36498）把共定位协克里金写成对井克里金的贝叶斯更新。Doyen 更新在远处按 \(\rho\) 把次变量异常往均值缩，硬矿体峰值会被压矮。本仓库在两口井及以上用 **KED**：主变量为孔点 UCS，漂移为 \((\mathrm{depth}, S_Z)\)，残差变程取孔距、垂向各向异性，力学残差只在孔旁插值，波阻抗的峰值不被 \(\rho\) 打折。单口井仍走 Doyen，避免 GP 标定过拟合铺满全块。孔轨迹体素始终写回 MWD 点估计。
+稀疏准的钻孔和全区连续的地震，是储层建模里同一类问题。Xu 等（SPE 24742）的做法是**外漂移克里金**（井为硬数据，地震为漂移）；Doyen 等（SPE 36498）把共定位协克里金写成对井克里金的贝叶斯更新。Doyen 更新在远处按 $\rho$ 把次变量异常往均值缩，硬矿体峰值会被压矮。本仓库在两口井及以上用 **KED**：主变量为孔点 UCS，漂移为 $(\mathrm{depth}, S_Z)$，残差变程取孔距、垂向各向异性，力学残差只在孔旁插值，波阻抗的峰值不被 $\rho$ 打折。单口井仍走 Doyen，避免 GP 标定过拟合铺满全块。孔轨迹体素始终写回 MWD 点估计。详细公式与文献见 [docs/技术说明.md](docs/技术说明.md) 与 [docs/插值方法.md](docs/插值方法.md)。
 
 ## 项目结构
 
@@ -97,7 +97,7 @@ python3 examples/run_visualizations.py --outdir results/viz
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fc76d3656e%2FAcoustic-impedance-inversion&root-directory=frontend&project-name=mine-fusion-viz&repository-name=mine-fusion-viz)
 
-`frontend/` 是 Vite + React + TypeScript + WebGL2 应用，随仓库发布**固定数据集**（KED 融合的 \(S_M,S_Z,S_F\) 与真值），全部在浏览器中计算：可切换各分支场、融合对比（含预测−真值热力图）、拖动 X/Y/Z 切片、半透明三维体 + 可移动剖面、多井测井曲线（真值 / MWD / 波阻抗 / 融合）、自定义强度色标，以及 **Pyodide + matplotlib 在浏览器内出中文出版图**（当前切片、融合优势 2×4、沿孔剖面）。部署是 100% 静态前端（Root Directory = `frontend`），无后端、无 serverless。
+`frontend/` 是 Vite + React + TypeScript + WebGL2 应用，随仓库发布**固定数据集**（KED 融合的 $S_M,S_Z,S_F$ 与真值），全部在浏览器中计算：可切换各分支场、融合对比（含预测−真值热力图）、拖动 X/Y/Z 切片、半透明三维体 + 可移动剖面、多井测井曲线（真值 / MWD / 波阻抗 / 融合）、自定义强度色标，以及 **Pyodide + matplotlib 在浏览器内出中文出版图**（当前切片、融合优势 2×4、沿孔剖面）。部署是 100% 静态前端（Root Directory = `frontend`），无后端、无 serverless。
 
 ```bash
 python3 scripts/export_frontend_dataset.py   # 重新导出固定数据集（确定性）
@@ -127,3 +127,16 @@ python scripts/download_datasets.py --dataset penobscot --dest data/penobscot
 ```
 
 五个数据模块及来源见 `data/README.md`。
+
+## 主要文献
+
+方法选择对应的是已发表工作，不是另起一套插值核。完整编号文献见 [docs/技术说明.md](docs/技术说明.md) 与 [docs/插值方法.md](docs/插值方法.md)。
+
+- Teale, R. The concept of specific energy in rock drilling. *Int. J. Rock Mech. Min. Sci.* **2**, 57–73 (1965). — MWD 比能与强度单调。
+- Leung, R. & Scheding, S. Automated coal seam detection using a modulated specific energy measure in a monitor-while-drilling context. *Int. J. Rock Mech. Min. Sci.* **75**, 196–209 (2015). — 露天矿爆破孔 MWD 比能。
+- Zhang, Z.-X., Hou, D.-F. & Aladejare, A. Empirical equations between characteristic impedance and mechanical properties of rocks. *J. Rock Mech. Geotech. Eng.* **12**, 975–983 (2020). — 特征阻抗与 UCS 相关，但不是恒等。
+- Chang, C., Zoback, M. D. & Khaksar, A. Empirical relations between rock strength and physical properties in sedimentary rocks. *J. Pet. Sci. Eng.* **51**, 223–237 (2006). — UCS–速度公式必须就地标定。
+- Lindseth, R. O. Synthetic sonic logs—a process for stratigraphic interpretation. *Geophysics* **44**, 3–26 (1979). — 叠后反演缺低频。
+- Xu, W., Tran, T. T., Srivastava, R. M. & Journel, A. G. Integrating seismic data in reservoir modeling: the collocated cokriging alternative. SPE-24742-MS (1992). — 井为硬数据、地震为漂移。
+- Doyen, P. M., den Boer, L. D. & Pillet, W. W. Seismic porosity mapping in the Ekofisk field using a new form of collocated cokriging. SPE-36498-MS (1996). — 单井共定位更新。
+- Hengl, T., Heuvelink, G. B. M. & Rossiter, D. G. About regression-kriging: from equations to case studies. *Comput. Geosci.* **33**, 1301–1315 (2007). — 回归克里金与 KED 等价。
