@@ -32,12 +32,7 @@ export const t = {
   view3d: "三维视图",
   viewCompare: "融合对比",
   showBoreholes: "显示钻孔",
-  volumeOpacity: "体透明度",
-  sectionTool: "剖切工具",
-  sectionEnable: "启用剖切",
-  sectionAxis: "剖切方向",
-  sectionPos: "剖切位置",
-  sectionReverse: "反向剖切",
+  sliceWysiwygHint: "三维、二维与出图共用这一切片，移动滑条即所见即所得。",
 
   exportKind: "出图类型",
   exportKindSlice: "当前切片",

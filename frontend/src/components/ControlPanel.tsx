@@ -48,16 +48,6 @@ export default function ControlPanel() {
   const setView = useStore((s) => s.setView);
   const showBoreholes = useStore((s) => s.showBoreholes);
   const setShowBoreholes = useStore((s) => s.setShowBoreholes);
-  const volumeOpacity = useStore((s) => s.volumeOpacity);
-  const setVolumeOpacity = useStore((s) => s.setVolumeOpacity);
-  const sectionOn = useStore((s) => s.sectionOn);
-  const setSectionOn = useStore((s) => s.setSectionOn);
-  const sectionAxis = useStore((s) => s.sectionAxis);
-  const setSectionAxis = useStore((s) => s.setSectionAxis);
-  const sectionIndex = useStore((s) => s.sectionIndex);
-  const setSectionIndex = useStore((s) => s.setSectionIndex);
-  const sectionReverse = useStore((s) => s.sectionReverse);
-  const setSectionReverse = useStore((s) => s.setSectionReverse);
   if (!manifest) return null;
 
   const { nx, ny, nz } = manifest.grid;
@@ -66,8 +56,6 @@ export default function ControlPanel() {
     x: manifest.axes.x, y: manifest.axes.y, z: manifest.axes.z,
   };
   const coord = axisCoords[axis][sliceIndex] ?? 0;
-  const sectionMax = axisMax[sectionAxis];
-  const sectionCoord = axisCoords[sectionAxis][sectionIndex] ?? 0;
 
   return (
     <div className="panel">
@@ -103,55 +91,6 @@ export default function ControlPanel() {
         </div>
       </section>
 
-      {view === "3d" && (
-        <section>
-          <h3>{t.sectionTool}</h3>
-          <div className="slice-slider">
-            <div className="pos-label">
-              <span>{t.volumeOpacity}</span>
-              <span className="pos-value">{Math.round(volumeOpacity * 100)}%</span>
-            </div>
-            <input type="range" min={0.05} max={1} step={0.05}
-              value={volumeOpacity}
-              onChange={(e) => setVolumeOpacity(parseFloat(e.target.value))} />
-          </div>
-          <label className="row checkbox">
-            <input type="checkbox" checked={sectionOn}
-              onChange={(e) => setSectionOn(e.target.checked)} />
-            <span>{t.sectionEnable}</span>
-          </label>
-          {sectionOn && (
-            <>
-              <label className="row">
-                <span>{t.sectionAxis}</span>
-                <select value={sectionAxis}
-                  onChange={(e) => setSectionAxis(e.target.value as SliceAxis)}>
-                  <option value="x">X</option>
-                  <option value="y">Y</option>
-                  <option value="z">Z</option>
-                </select>
-              </label>
-              <div className="slice-slider">
-                <div className="pos-label">
-                  <span>{t.sectionPos}</span>
-                  <span className="pos-value">
-                    <NumberFlow value={Math.round(sectionCoord)} /> {t.meter}
-                  </span>
-                </div>
-                <input type="range" min={0} max={sectionMax} step={1}
-                  value={sectionIndex}
-                  onChange={(e) => setSectionIndex(parseInt(e.target.value))} />
-              </div>
-              <label className="row checkbox">
-                <input type="checkbox" checked={sectionReverse}
-                  onChange={(e) => setSectionReverse(e.target.checked)} />
-                <span>{t.sectionReverse}</span>
-              </label>
-            </>
-          )}
-        </section>
-      )}
-
       <section>
         <h3>{t.panelSlice}</h3>
         <label className="row">
@@ -175,6 +114,7 @@ export default function ControlPanel() {
             onChange={(e) => setSliceIndex(axis, parseInt(e.target.value))}
           />
         </div>
+        {view === "3d" && <p className="hint">{t.sliceWysiwygHint}</p>}
       </section>
 
       {view !== "compare" && (

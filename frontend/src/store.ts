@@ -15,11 +15,6 @@ interface AppState {
   reverse: boolean;
   view: ViewMode;
   showBoreholes: boolean;
-  volumeOpacity: number;
-  sectionOn: boolean;
-  sectionAxis: SliceAxis;
-  sectionIndex: number;
-  sectionReverse: boolean;
   selectedWell: string | null;
   error: string | null;
   ready: boolean;
@@ -33,11 +28,6 @@ interface AppState {
   setReverse: (r: boolean) => void;
   setView: (v: ViewMode) => void;
   setShowBoreholes: (b: boolean) => void;
-  setVolumeOpacity: (v: number) => void;
-  setSectionOn: (b: boolean) => void;
-  setSectionAxis: (a: SliceAxis) => void;
-  setSectionIndex: (v: number) => void;
-  setSectionReverse: (b: boolean) => void;
   setSelectedWell: (id: string | null) => void;
   currentField: () => FieldVolume | null;
 }
@@ -59,11 +49,6 @@ export const useStore = create<AppState>((set, get) => ({
   reverse: false,
   view: "2d",
   showBoreholes: true,
-  volumeOpacity: 0.45,
-  sectionOn: false,
-  sectionAxis: "x",
-  sectionIndex: 12,
-  sectionReverse: false,
   selectedWell: null,
   error: null,
   ready: false,
@@ -135,15 +120,6 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
   setShowBoreholes: (b) => set({ showBoreholes: b }),
-  setVolumeOpacity: (v) => set({ volumeOpacity: v }),
-  setSectionOn: (b) => set({ sectionOn: b }),
-  setSectionAxis: (a) => {
-    const m = get().manifest;
-    const dim = m ? { x: m.grid.nx, y: m.grid.ny, z: m.grid.nz }[a] : 2;
-    set({ sectionAxis: a, sectionIndex: Math.floor(dim / 2) });
-  },
-  setSectionIndex: (v) => set({ sectionIndex: v }),
-  setSectionReverse: (b) => set({ sectionReverse: b }),
   setSelectedWell: (id) => set({ selectedWell: id }),
   currentField: () => get().fields[get().fieldKey] ?? null,
 }));
