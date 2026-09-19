@@ -11,19 +11,25 @@ from .synthetic import (
     acoustic_impedance,
 )
 from .synthetic_mine import (
+    FACE_HEIGHT,
+    FACE_WIDTH,
     generate_mine,
     MineDataset,
     unique_hole_xy_indices,
     subset_holes,
     plum_blossom_hole_indices,
+    centered_face,
 )
 
 __all__ = [
     "layered_property_model",
     "acoustic_impedance",
+    "FACE_HEIGHT",
+    "FACE_WIDTH",
     "generate_mine",
     "MineDataset",
     "unique_hole_xy_indices",
     "subset_holes",
     "plum_blossom_hole_indices",
+    "centered_face",
 ]

@@ -53,14 +53,28 @@ export function clampWindowOrigin(
   };
 }
 
-function axisRange(coords: number[], lo: number, hi: number): [number, number] {
-  let i0 = 0;
-  let i1 = coords.length - 1;
+function nearestIndex(coords: number[], value: number): number {
+  let best = 0;
+  let bestD = Infinity;
   for (let i = 0; i < coords.length; i++) {
-    if (coords[i] + 1e-9 >= lo) { i0 = i; break; }
+    const d = Math.abs(coords[i] - value);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
   }
-  for (let i = coords.length - 1; i >= 0; i--) {
-    if (coords[i] - 1e-9 <= hi) { i1 = i; break; }
+  return best;
+}
+
+function axisRange(coords: number[], lo: number, hi: number): [number, number] {
+  // Snap to nearest samples so a 20×50 m window stays ~20×50 m on the grid
+  // (strict interior bounds shrink the crop by up to one cell on each side).
+  let i0 = nearestIndex(coords, lo);
+  let i1 = nearestIndex(coords, hi);
+  if (i1 < i0) {
+    const tmp = i0;
+    i0 = i1;
+    i1 = tmp;
   }
   if (i1 <= i0) i1 = Math.min(coords.length - 1, i0 + 1);
   return [i0, i1];

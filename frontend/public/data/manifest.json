@@ -141,8 +141,8 @@
       "file": "fields/fused_strength.bin",
       "scale": 1.0,
       "default_cmap": "viridis",
-      "min": 11.434875536467707,
-      "max": 92.80161444294993
+      "min": 8.188430955455168,
+      "max": 79.11975334393729
     },
     {
       "key": "mwd_strength",
@@ -151,8 +151,8 @@
       "file": "fields/mwd_strength.bin",
       "scale": 1.0,
       "default_cmap": "viridis",
-      "min": 18.644990052596913,
-      "max": 83.32894794339867
+      "min": 20.668653340243395,
+      "max": 75.33485595492986
     },
     {
       "key": "seismic_strength",
@@ -161,8 +161,8 @@
       "file": "fields/seismic_strength.bin",
       "scale": 1.0,
       "default_cmap": "viridis",
-      "min": 22.446088330750428,
-      "max": 91.09114483613538
+      "min": 22.718872087766623,
+      "max": 72.79537455118201
     },
     {
       "key": "ground_truth",
@@ -192,7 +192,7 @@
       "scale": 1.0,
       "default_cmap": "magma",
       "min": 0.0,
-      "max": 7.390804484137684
+      "max": 6.683495382063043
     },
     {
       "key": "fusion_weight",
@@ -201,7 +201,7 @@
       "file": "fields/fusion_weight.bin",
       "scale": 1.0,
       "default_cmap": "magma",
-      "min": 0.0,
+      "min": 2.2426505097428162e-14,
       "max": 1.0
     }
   ],
@@ -232,6 +232,8 @@
   },
   "view_window": {
     "width": 20,
-    "height": 50
+    "height": 50,
+    "x0": 15.0,
+    "y0": 15.0
   }
 }

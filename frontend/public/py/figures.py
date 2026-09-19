@@ -1,7 +1,7 @@
 """Publication matplotlib recipes for the static frontend (Pyodide) and tests.
 
-Layout matches ``visualization.report_style``: ``aspect='auto'`` so the 50×80 m
-block fills the axes the same way as ``docs/images``, and a fixed canvas
+Layout matches ``visualization.report_style``: ``aspect='auto'`` so the 20×50 m
+working-face window fills the axes the same way as ``docs/images``, and a fixed canvas
 (no ``bbox_inches='tight'``) so PNG pixel aspect equals figsize × dpi.
 
   * slice      — 7.2 × 5.6 in @ 150 dpi → 1080 × 840
@@ -302,11 +302,17 @@ def render_trislices(payload) -> str:
     gz = np.linspace(min(z0, z1), max(z0, z1), xz.shape[0])
 
     fig = plt.figure(figsize=TRISLICES_FIGSIZE, facecolor="white")
-    gs = fig.add_gridspec(2, 3, height_ratios=[1.35, 1.0], hspace=0.32, wspace=0.28)
-    ax3d = fig.add_subplot(gs[0, :], projection="3d", facecolor="white")
-    ax_xy = fig.add_subplot(gs[1, 0])
-    ax_xz = fig.add_subplot(gs[1, 1])
-    ax_yz = fig.add_subplot(gs[1, 2])
+    gs = fig.add_gridspec(
+        3, 3,
+        width_ratios=[1.70, 0.20, 1.0],
+        height_ratios=[1.0, 1.0, 1.0],
+        left=0.02, right=0.90, top=0.90, bottom=0.07,
+        hspace=0.42, wspace=0.05,
+    )
+    ax3d = fig.add_subplot(gs[:, 0], projection="3d", facecolor="white")
+    ax_xy = fig.add_subplot(gs[0, 2])
+    ax_xz = fig.add_subplot(gs[1, 2])
+    ax_yz = fig.add_subplot(gs[2, 2])
 
     norm = Normalize(vmin=vmin, vmax=vmax)
     xx_xy, yy_xy = np.meshgrid(gx, gy)
@@ -325,13 +331,22 @@ def render_trislices(payload) -> str:
     ax3d.set_ylim(y0, y1)
     ax3d.set_zlim(min(z0, z1), max(z0, z1))
     try:
-        ax3d.set_box_aspect((1.0, 1.6, 1.15))
-    except Exception:
-        pass
+        ax3d.set_box_aspect((1.0, 1.55, 1.25), zoom=1.32)
+    except TypeError:
+        try:
+            ax3d.set_box_aspect((1.0, 1.55, 1.25))
+        except Exception:
+            pass
+        ax3d.dist = 8.0
+    ax3d.set_anchor("C")
+    ax3d.tick_params(labelsize=8, pad=1)
+    ax3d.set_xticks([x0, 0.5 * (x0 + x1), x1])
+    ax3d.set_yticks([y0, 0.5 * (y0 + y1), y1])
+    ax3d.set_zticks([min(z0, z1), 0.5 * (z0 + z1), max(z0, z1)])
     ax3d.set_xlabel("X (m)")
     ax3d.set_ylabel("Y (m)")
     ax3d.set_zlabel("Z (m)")
-    ax3d.set_title(f"三正交切面  X={xc:.0f} m, Y={yc:.0f} m, Z={zc:.0f} m", pad=8)
+    ax3d.set_title(f"三正交切面  X={xc:.0f} m, Y={yc:.0f} m, Z={zc:.0f} m", pad=6)
 
     ext_xy = p["xy"]["extent"]
     xs_xy = np.linspace(ext_xy[0], ext_xy[1], xy.shape[1])
@@ -360,9 +375,12 @@ def render_trislices(payload) -> str:
     _style_ax(ax_yz, ext_yz, f"YZ  X={xc:.0f} m",
               p["yz"].get("horizLabel", "Y (m)"), p["yz"].get("vertLabel", "Z (m)"))
 
+    ax_xy.locator_params(nbins=4)
+    ax_xz.locator_params(nbins=4)
+    ax_yz.locator_params(nbins=4)
     sm = cm.ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
-    cbar = fig.colorbar(sm, ax=[ax3d, ax_xy, ax_xz, ax_yz], shrink=0.55, pad=0.02)
+    cbar = fig.colorbar(sm, ax=[ax_xy, ax_xz, ax_yz], shrink=0.82, pad=0.04)
     cbar.set_label(p.get("unit") or "UCS (MPa)")
     if p.get("title"):
         fig.suptitle(p["title"], fontsize=13)

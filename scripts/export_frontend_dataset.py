@@ -19,7 +19,7 @@ import os
 
 import numpy as np
 
-from datasets import generate_mine, unique_hole_xy_indices
+from datasets import generate_mine, unique_hole_xy_indices, centered_face
 from fusion import run_fusion_pipeline
 
 # Live compare view + Pyodide fusion-advantage figure (matches docs/images).
@@ -141,6 +141,12 @@ def write_frontend_dataset(ds, res, outdir: str, n_holes: int, seed: int) -> dic
         print(f"   field {key:18s} range {vol.min():.4g}..{vol.max():.4g}")
 
     wells = wells_from_result(ds, res)
+    bbox = ds.meta.get("hole_bbox") or centered_face(ds.gx, ds.gy)
+    view_window = {
+        **VIEW_WINDOW,
+        "x0": float(bbox[0]),
+        "y0": float(bbox[2]),
+    }
     manifest = {
         "title_zh": "露天矿波阻抗与岩石强度三维可视化",
         "grid": {"nx": nx, "ny": ny, "nz": nz},
@@ -162,7 +168,7 @@ def write_frontend_dataset(ds, res, outdir: str, n_holes: int, seed: int) -> dic
             "titles_zh": list(COMPARE_TITLES),
             "residual_titles_zh": list(COMPARE_RESIDUAL_TITLES),
         },
-        "view_window": dict(VIEW_WINDOW),
+        "view_window": dict(view_window),
     }
     with open(os.path.join(outdir, "manifest.json"), "w") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
