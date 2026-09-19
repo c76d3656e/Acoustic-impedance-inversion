@@ -77,6 +77,30 @@ def test_field_residual_grid_writes_png(tmp_path):
     assert os.path.getsize(path) > 1000
 
 
+def test_orthogonal_trislices_writes_png(tmp_path):
+    ds = generate_mine(shape=(12, 10, 24), n_holes=4, seed=1)
+    holes = np.unique(ds.hole_xyz[:, :2], axis=0)
+    out = str(tmp_path / "trislices.png")
+    from visualization import plot_orthogonal_trislices
+
+    path = plot_orthogonal_trislices(
+        ds.ucs_true, ds.gx, ds.gy, ds.gz,
+        ix=6, iy=5, iz=12, outfile=out,
+        title="trislices test", holes_xy=holes,
+    )
+    assert os.path.exists(path)
+    assert os.path.getsize(path) > 1000
+
+
+def test_spherical_variogram_writes_png(tmp_path):
+    out = str(tmp_path / "variogram.png")
+    from visualization import plot_spherical_variogram
+
+    path = plot_spherical_variogram(out, range_m=16.5)
+    assert os.path.exists(path)
+    assert os.path.getsize(path) > 500
+
+
 def test_interactive_html_written(tmp_path):
     ds = generate_mine(shape=(10, 8, 20), n_holes=4, seed=2)
     v_html = str(tmp_path / "vol.html")

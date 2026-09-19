@@ -70,12 +70,20 @@ export default function App() {
   const init = useStore((s) => s.init);
   const view = useStore((s) => s.view);
   const title = useStore((s) => s.manifest?.title_zh);
+  const theme = useStore((s) => s.theme);
+  const setTheme = useStore((s) => s.setTheme);
   const isDesktop = useIsDesktop();
   const [mobilePane, setMobilePane] = useState<MobilePane>("scene");
 
   useEffect(() => {
     init();
   }, [init]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", theme === "light" ? "#eceef1" : "#0b0e14");
+  }, [theme]);
 
   useEffect(() => {
     if (isDesktop) setMobilePane("scene");
@@ -117,6 +125,23 @@ export default function App() {
         </div>
         <h1>{title ?? t.appTitle}</h1>
         <span className="subtitle">{t.subtitle}</span>
+        <span className="header-spacer" />
+        <div className="theme-toggle" role="group" aria-label={t.themeToggle}>
+          <button
+            type="button"
+            className={clsx("theme-btn", theme === "light" && "on")}
+            onClick={() => setTheme("light")}
+          >
+            {t.themeLight}
+          </button>
+          <button
+            type="button"
+            className={clsx("theme-btn", theme === "dark" && "on")}
+            onClick={() => setTheme("dark")}
+          >
+            {t.themeDark}
+          </button>
+        </div>
       </header>
 
       <div className="app-body">

@@ -42,6 +42,10 @@ def test_committed_manifest_has_ked_compare_fields():
     assert manifest["compare"]["keys"] == [
         "ground_truth", "mwd_strength", "seismic_strength", "fused_strength",
     ]
+    assert manifest["compare"]["titles_zh"][1] == "(b) 钻孔插值"
+    assert manifest["compare"]["residual_titles_zh"][1] == "(e) 钻孔残差"
+    assert manifest.get("view_window", {}).get("width") == 20
+    assert manifest.get("view_window", {}).get("height") == 50
     nx, ny, nz = manifest["grid"]["nx"], manifest["grid"]["ny"], manifest["grid"]["nz"]
     nbytes = nx * ny * nz * 4
     for key in REQUIRED_FIELDS:

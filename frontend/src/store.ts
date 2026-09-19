@@ -1,8 +1,12 @@
 import { create } from "zustand";
-import type { Colormap, FieldVolume, Manifest, SliceAxis, ViewMode, VolumeStyle, Well } from "./types";
+import type { Colormap, FieldVolume, Manifest, SliceAxis, ThemeMode, ViewMode, VolumeStyle, Well } from "./types";
 import { DEFAULT_COMPARE_KEYS } from "./types";
 import { loadField, loadManifest, loadWells } from "./data/loader";
 import { PRESETS, DEFAULT_CUSTOM } from "./viz/colormaps";
+import {
+  clampIndexToCrop, clampWindowOrigin, cropWindow, defaultWindowOrigin,
+} from "./viz/window";
+import type { ViewCrop } from "./viz/window";
 
 interface AppState {
   manifest: Manifest | null;
@@ -19,6 +23,9 @@ interface AppState {
   sectionReverse: boolean;
   showBoreholes: boolean;
   selectedWell: string | null;
+  winX0: number;
+  winY0: number;
+  theme: ThemeMode;
   error: string | null;
   ready: boolean;
 
@@ -35,7 +42,10 @@ interface AppState {
   setSectionReverse: (b: boolean) => void;
   setShowBoreholes: (b: boolean) => void;
   setSelectedWell: (id: string | null) => void;
+  setWindowOrigin: (x0: number, y0: number) => void;
+  setTheme: (t: ThemeMode) => void;
   currentField: () => FieldVolume | null;
+  crop: () => ViewCrop | null;
 }
 
 function compareKeysOf(manifest: Manifest | null): string[] {
@@ -59,6 +69,11 @@ export const useStore = create<AppState>((set, get) => ({
   sectionReverse: false,
   showBoreholes: true,
   selectedWell: null,
+  winX0: 15,
+  winY0: 15,
+  theme: (typeof localStorage !== "undefined"
+    && localStorage.getItem("mine-fusion-theme") === "dark")
+    ? "dark" : "light",
   error: null,
   ready: false,
 
@@ -71,16 +86,20 @@ export const useStore = create<AppState>((set, get) => ({
         manifest.fields.find((f) => f.key === preferred) ?? manifest.fields[0];
       const vol = await loadField(manifest, first.key);
       const preset = PRESETS.find((p) => p.key === first.default_cmap) ?? PRESETS[0];
-      const { nx, ny, nz } = manifest.grid;
+      const { nz } = manifest.grid;
+      const origin = defaultWindowOrigin(manifest);
+      const crop = cropWindow(manifest, origin.x0, origin.y0);
       set({
         manifest,
         wells,
         fields: { [first.key]: vol },
         fieldKey: first.key,
         colormap: preset,
+        winX0: origin.x0,
+        winY0: origin.y0,
         sliceIndex: {
-          x: Math.floor(nx / 2),
-          y: Math.floor(ny / 2),
+          x: Math.floor((crop.ix0 + crop.ix1) / 2),
+          y: Math.floor((crop.iy0 + crop.iy1) / 2),
           z: Math.floor(nz / 2),
         },
         selectedWell: wells.find((w) => w.profile)?.id ?? wells[0]?.id ?? null,
@@ -133,7 +152,32 @@ export const useStore = create<AppState>((set, get) => ({
   setVolumeOpacity: (v) => set({ volumeOpacity: v }),
   setSectionReverse: (b) => set({ sectionReverse: b }),
   setSelectedWell: (id) => set({ selectedWell: id }),
+  setWindowOrigin: (x0, y0) => {
+    const { manifest, sliceIndex } = get();
+    if (!manifest) return;
+    const origin = clampWindowOrigin(manifest, x0, y0);
+    const crop = cropWindow(manifest, origin.x0, origin.y0);
+    const nz = manifest.grid.nz;
+    set({
+      winX0: origin.x0,
+      winY0: origin.y0,
+      sliceIndex: {
+        x: clampIndexToCrop("x", sliceIndex.x, crop, nz),
+        y: clampIndexToCrop("y", sliceIndex.y, crop, nz),
+        z: clampIndexToCrop("z", sliceIndex.z, crop, nz),
+      },
+    });
+  },
+  setTheme: (theme) => {
+    try { localStorage.setItem("mine-fusion-theme", theme); } catch { /* ignore */ }
+    set({ theme });
+  },
   currentField: () => get().fields[get().fieldKey] ?? null,
+  crop: () => {
+    const { manifest, winX0, winY0 } = get();
+    if (!manifest) return null;
+    return cropWindow(manifest, winX0, winY0);
+  },
 }));
 
 export { PRESETS, DEFAULT_CUSTOM };

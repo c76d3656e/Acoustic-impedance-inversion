@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useStore } from "../store";
 import type { SliceAxis, ViewMode, VolumeStyle } from "../types";
 import { t } from "../i18n";
+import { cropWindow, windowMaxOrigin } from "../viz/window";
 
 export function Segmented<T extends string>({
   value, options, onChange, layoutId, compact,
@@ -54,10 +55,15 @@ export default function VizControls({ compact = false }: { compact?: boolean }) 
   const setSectionReverse = useStore((s) => s.setSectionReverse);
   const showBoreholes = useStore((s) => s.showBoreholes);
   const setShowBoreholes = useStore((s) => s.setShowBoreholes);
+  const winX0 = useStore((s) => s.winX0);
+  const winY0 = useStore((s) => s.winY0);
+  const setWindowOrigin = useStore((s) => s.setWindowOrigin);
   if (!manifest) return null;
 
-  const { nx, ny, nz } = manifest.grid;
-  const axisMax: Record<SliceAxis, number> = { x: nx - 1, y: ny - 1, z: nz - 1 };
+  const { nz } = manifest.grid;
+  const crop = cropWindow(manifest, winX0, winY0);
+  const axisMin: Record<SliceAxis, number> = { x: crop.ix0, y: crop.iy0, z: 0 };
+  const axisMax: Record<SliceAxis, number> = { x: crop.ix1, y: crop.iy1, z: nz - 1 };
   const axisCoords: Record<SliceAxis, number[]> = {
     x: manifest.axes.x, y: manifest.axes.y, z: manifest.axes.z,
   };
@@ -169,7 +175,7 @@ export default function VizControls({ compact = false }: { compact?: boolean }) 
             </span>
           </div>
           <input
-            type="range" min={0} max={axisMax[axis]} step={1}
+            type="range" min={axisMin[axis]} max={axisMax[axis]} step={1}
             value={sliceIndex}
             onChange={(e) => setSliceIndex(axis, parseInt(e.target.value, 10))}
           />
@@ -179,6 +185,50 @@ export default function VizControls({ compact = false }: { compact?: boolean }) 
             {volumeStyle === "voxel" ? t.sliceVoxelHint : t.sliceWysiwygHint}
           </p>
         )}
+      </section>
+
+      <section>
+        {!compact && <h3>{t.panelWindow}</h3>}
+        {(() => {
+          const maxO = windowMaxOrigin(manifest);
+          const [X0] = manifest.extent.x;
+          const [Y0] = manifest.extent.y;
+          const dx = manifest.axes.x.length > 1
+            ? manifest.axes.x[1] - manifest.axes.x[0] : 1;
+          const dy = manifest.axes.y.length > 1
+            ? manifest.axes.y[1] - manifest.axes.y[0] : 1;
+          return (
+            <>
+              <div className="slice-slider">
+                <div className="pos-label">
+                  <span>{t.windowX}</span>
+                  <span className="pos-value">
+                    <NumberFlow value={Math.round(winX0)} />–{Math.round(crop.x1)} {t.meter}
+                  </span>
+                </div>
+                <input
+                  type="range" min={X0} max={maxO.x} step={dx}
+                  value={winX0}
+                  onChange={(e) => setWindowOrigin(parseFloat(e.target.value), winY0)}
+                />
+              </div>
+              <div className="slice-slider">
+                <div className="pos-label">
+                  <span>{t.windowY}</span>
+                  <span className="pos-value">
+                    <NumberFlow value={Math.round(winY0)} />–{Math.round(crop.y1)} {t.meter}
+                  </span>
+                </div>
+                <input
+                  type="range" min={Y0} max={maxO.y} step={dy}
+                  value={winY0}
+                  onChange={(e) => setWindowOrigin(winX0, parseFloat(e.target.value))}
+                />
+              </div>
+              {!compact && <p className="hint">{t.windowHint}</p>}
+            </>
+          );
+        })()}
       </section>
     </div>
   );

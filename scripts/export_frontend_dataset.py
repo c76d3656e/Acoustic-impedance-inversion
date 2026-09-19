@@ -31,16 +31,17 @@ COMPARE_KEYS = (
 )
 COMPARE_TITLES = (
     "(a) 强度真值",
-    "(b) 仅钻孔插值",
-    "(c) 仅波阻抗标定",
-    "(d) 外漂移克里金融合",
+    "(b) 钻孔插值",
+    "(c) 波阻抗插值",
+    "(d) 融合插值",
 )
 COMPARE_RESIDUAL_TITLES = (
     "",
-    "(e) 仅钻孔 − 真值",
-    "(f) 仅波阻抗 − 真值",
-    "(g) 融合 − 真值",
+    "(e) 钻孔残差",
+    "(f) 波阻抗残差",
+    "(g) 融合残差",
 )
+VIEW_WINDOW = {"width": 20, "height": 50}
 
 
 def _write_field(path: str, vol: np.ndarray) -> None:
@@ -161,6 +162,7 @@ def write_frontend_dataset(ds, res, outdir: str, n_holes: int, seed: int) -> dic
             "titles_zh": list(COMPARE_TITLES),
             "residual_titles_zh": list(COMPARE_RESIDUAL_TITLES),
         },
+        "view_window": dict(VIEW_WINDOW),
     }
     with open(os.path.join(outdir, "manifest.json"), "w") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)

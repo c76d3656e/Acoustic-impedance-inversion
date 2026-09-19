@@ -6,6 +6,7 @@ import { RDBU, buildLUT } from "../viz/colormaps";
 import { drawScaled, extractSlice, sliceToImageData } from "../viz/slice";
 import type { Slice2D } from "../viz/slice";
 import { DEFAULT_COMPARE_KEYS } from "../types";
+import { cropWindow } from "../viz/window";
 import { t } from "../i18n";
 
 function percentileAbs(values: number[], p: number): number {
@@ -144,6 +145,8 @@ export default function CompareView2D() {
   const ensureFields = useStore((s) => s.ensureFields);
   const colormap = useStore((s) => s.colormap);
   const reverse = useStore((s) => s.reverse);
+  const winX0 = useStore((s) => s.winX0);
+  const winY0 = useStore((s) => s.winY0);
 
   const keys = manifest?.compare?.keys ?? DEFAULT_COMPARE_KEYS;
   const titles = manifest?.compare?.titles_zh;
@@ -155,6 +158,10 @@ export default function CompareView2D() {
 
   const fieldLut = useMemo(() => buildLUT(colormap, reverse), [colormap, reverse]);
   const rdbu = useMemo(() => buildLUT(RDBU), []);
+  const crop = useMemo(
+    () => (manifest ? cropWindow(manifest, winX0, winY0) : null),
+    [manifest, winX0, winY0],
+  );
 
   const slices = useMemo(() => {
     if (!manifest) return null;
@@ -162,10 +169,10 @@ export default function CompareView2D() {
     for (const k of keys) {
       const v = fields[k];
       if (!v) return null;
-      out.push(extractSlice(v, manifest, axis, sliceIndex[axis]));
+      out.push(extractSlice(v, manifest, axis, sliceIndex[axis], crop));
     }
     return out;
-  }, [manifest, fields, keys, axis, sliceIndex]);
+  }, [manifest, fields, keys, axis, sliceIndex, crop]);
 
   const ready = Boolean(slices);
   const truthMeta = fields[keys[0]]?.meta;
@@ -194,7 +201,9 @@ export default function CompareView2D() {
   }
 
   const showHoles = showBoreholes && axis === "z";
-  const holeXY = wells.map((w) => ({ x: w.x, y: w.y }));
+  const holeXY = wells
+    .filter((w) => !crop || (w.x >= crop.x0 && w.x <= crop.x1 && w.y >= crop.y0 && w.y <= crop.y1))
+    .map((w) => ({ x: w.x, y: w.y }));
   const openField = (key: string) => {
     void setFieldKey(key);
     setView("2d");

@@ -35,6 +35,9 @@ from visualization import (
     plot_report_slice,
     plot_slice_grid,
     plot_field_residual_grid,
+    plot_orthogonal_trislices,
+    plot_spherical_variogram,
+    plot_working_face,
 )
 from visualization.report_style import _draw_holes, _style_slice_ax
 
@@ -71,16 +74,16 @@ def plot_metrics_curves(rows, outfile, far_radius: float = 12.0):
     n = [r["n_holes"] for r in rows]
     fig, axes = plt.subplots(1, 2, figsize=(10.4, 4.2), constrained_layout=True)
 
-    axes[0].plot(n, [r["mwd_rmse"] for r in rows], "o-", label="仅钻孔克里金插值")
-    axes[0].plot(n, [r["seis_rmse"] for r in rows], "s--", label="仅波阻抗标定")
-    axes[0].plot(n, [r["fused_rmse"] for r in rows], "D-", label="外漂移克里金融合")
+    axes[0].plot(n, [r["mwd_rmse"] for r in rows], "o-", label="钻孔插值")
+    axes[0].plot(n, [r["seis_rmse"] for r in rows], "s--", label="波阻抗插值")
+    axes[0].plot(n, [r["fused_rmse"] for r in rows], "D-", label="融合插值")
     if np.isfinite(rows[0].get("mwd_far_rmse", np.nan)):
         axes[0].plot(n, [r["mwd_far_rmse"] for r in rows], "o:", color="C0",
-                     alpha=0.7, label=f"仅钻孔（距孔 > {far_radius:.0f} m）")
+                     alpha=0.7, label=f"钻孔插值（距孔 > {far_radius:.0f} m）")
         axes[0].plot(n, [r["fused_far_rmse"] for r in rows], "D:", color="C2",
                      alpha=0.7, label=f"融合（距孔 > {far_radius:.0f} m）")
     axes[0].plot(n, [r["hole_seis_rmse"] for r in rows], "s:", color="C1",
-                 alpha=0.85, label="仅波阻抗（孔轨迹上）")
+                 alpha=0.85, label="波阻抗插值（孔轨迹上）")
     axes[0].plot(n, [r["hole_fused_rmse"] for r in rows], "D:", color="C2",
                  alpha=0.85, label="融合（孔轨迹上）")
     axes[0].set_xlabel("钻孔数量")
@@ -89,9 +92,9 @@ def plot_metrics_curves(rows, outfile, far_radius: float = 12.0):
     axes[0].grid(True, alpha=0.3)
     axes[0].legend(fontsize=8)
 
-    axes[1].plot(n, [r["mwd_r2"] for r in rows], "o-", label="仅钻孔克里金插值")
-    axes[1].plot(n, [r["seis_r2"] for r in rows], "s--", label="仅波阻抗标定")
-    axes[1].plot(n, [r["fused_r2"] for r in rows], "D-", label="外漂移克里金融合")
+    axes[1].plot(n, [r["mwd_r2"] for r in rows], "o-", label="钻孔插值")
+    axes[1].plot(n, [r["seis_r2"] for r in rows], "s--", label="波阻抗插值")
+    axes[1].plot(n, [r["fused_r2"] for r in rows], "D-", label="融合插值")
     axes[1].set_xlabel("钻孔数量")
     axes[1].set_ylabel("$R^2$")
     axes[1].set_title("与真值的决定系数随钻孔数变化")
@@ -117,8 +120,8 @@ def plot_compare_rows(ds_list, mwd_fields, fused_fields, true_field,
         3, n_cols, figsize=(3.5 * n_cols + 1.0, 9.4), constrained_layout=True,
     )
     row_cmaps = [
-        (mwd_fields, lev, "viridis", "仅钻孔克里金插值"),
-        (fused_fields, lev, "viridis", "钻孔 + 波阻抗融合"),
+        (mwd_fields, lev, "viridis", "钻孔插值"),
+        (fused_fields, lev, "viridis", "融合插值"),
         ([np.abs(f - true_field) for f in fused_fields], err_lev, "magma",
          "融合绝对误差"),
     ]
@@ -266,9 +269,9 @@ def plot_along_holes(ds, res, outfile, n_show: int = 2):
         sz = res.S_Z[i, j, ds.hole_iz[mask]][order]
         sf = res.S_F[i, j, ds.hole_iz[mask]][order]
         ax.plot(true, z, "k-", lw=2.0, label="真值 UCS")
-        ax.plot(sz, z, "--", color="C1", lw=1.8, label="仅波阻抗标定")
-        ax.plot(sm, z, ":", color="C0", lw=1.8, label="MWD（孔点）")
-        ax.plot(sf, z, "-", color="C2", lw=2.0, label="外漂移克里金融合")
+        ax.plot(sz, z, "--", color="C1", lw=1.8, label="波阻抗插值")
+        ax.plot(sm, z, ":", color="C0", lw=1.8, label="钻孔插值")
+        ax.plot(sf, z, "-", color="C2", lw=2.0, label="融合插值")
         ax.set_xlabel("UCS (MPa)")
         ax.set_title(titles[k] if k < len(titles) else f"钻孔 {k+1}")
         ax.grid(True, alpha=0.3)
@@ -296,8 +299,8 @@ def plot_mwd_weight(ds, res, z_index, outfile):
     elev = float(ds.gz[z_index])
     plot_report_slice(
         w_m, ds.gx, ds.gy, z_index, outfile,
-        title=rf"{elev:.0f} m 标高融合权重 $w_{{\mathrm{{MWD}}}}$（越亮越信钻孔）",
-        cbar_label=r"$w_{\mathrm{MWD}}$", holes_xy=holes_xy(ds),
+        title=f"{elev:.0f} m 标高融合权重 w_MWD（越亮越信钻孔）",
+        cbar_label="w_MWD", holes_xy=holes_xy(ds),
         cmap="magma", vmin=0.0, vmax=1.0,
     )
     return outfile
@@ -354,7 +357,7 @@ def main() -> None:
     plot_report_slice(
         res_all.S_M, ds_all.gx, ds_all.gy, zi,
         os.path.join(args.outdir, "mwd_only_strength.png"),
-        title=f"{elev:.0f} m 标高仅钻孔克里金插值强度场 (MPa)",
+        title=f"{elev:.0f} m 标高钻孔插值强度场 (MPa)",
         cbar_label="UCS (MPa)", holes_xy=holes_all, vmin=vmin, vmax=vmax,
     )
     plot_report_slice(
@@ -366,22 +369,22 @@ def main() -> None:
     plot_report_slice(
         res_all.S_F, ds_all.gx, ds_all.gy, zi,
         os.path.join(args.outdir, "fused_strength.png"),
-        title=f"{elev:.0f} m 标高外漂移克里金融合强度场 (MPa)",
+        title=f"{elev:.0f} m 标高融合插值强度场 (MPa)",
         cbar_label="UCS (MPa)", holes_xy=holes_all, vmin=vmin, vmax=vmax,
     )
     plot_report_slice(
         res_all.ai_inv, ds_all.gx, ds_all.gy, zi,
         os.path.join(args.outdir, "impedance_slice.png"),
-        title=rf"{elev:.0f} m 标高波阻抗反演场 (×$10^6$ kg/(m$^2\cdot$s))",
-        cbar_label=r"波阻抗 (×$10^6$ kg/(m$^2\cdot$s))",
+        title=f"{elev:.0f} m 标高波阻抗反演场 (×10⁶ kg/(m²·s))",
+        cbar_label="波阻抗 (×10⁶ kg/(m²·s))",
         holes_xy=holes_all, scale=1e6,
     )
     plot_field_residual_grid(
         ds_all.ucs_true,
         [
-            (res_all.S_M, "(b) 仅钻孔插值", "(e) 仅钻孔 $-$ 真值"),
-            (res_all.S_Z, "(c) 仅波阻抗标定", "(f) 仅波阻抗 $-$ 真值"),
-            (res_all.S_F, "(d) 外漂移克里金融合", "(g) 融合 $-$ 真值"),
+            (res_all.S_M, "(b) 钻孔插值", "(e) 钻孔残差"),
+            (res_all.S_Z, "(c) 波阻抗插值", "(f) 波阻抗残差"),
+            (res_all.S_F, "(d) 融合插值", "(g) 融合残差"),
         ],
         ds_all.gx, ds_all.gy, zi,
         os.path.join(args.outdir, "fusion_advantage.png"),
@@ -397,6 +400,43 @@ def main() -> None:
     )
     plot_hole_layout(
         ds_all, zi, os.path.join(args.outdir, "hole_layout.png"),
+    )
+    win_x0, win_y0, win_w, win_h = 15.0, 15.0, 20.0, 50.0
+    plot_working_face(
+        ds_all.ucs_true, ds_all.gx, ds_all.gy, zi,
+        os.path.join(args.outdir, "working_face_window.png"),
+        x0=win_x0, y0=win_y0, width=win_w, height=win_h,
+        title=f"{elev:.0f} m 标高工作面窗口（20×50 m / 全块 50×80 m）",
+        holes_xy=holes_all, vmin=vmin, vmax=vmax,
+    )
+    plot_spherical_variogram(
+        os.path.join(args.outdir, "spherical_variogram.png"),
+        range_m=max(1.15 * spacing, 8.0),
+        title="球状变差函数（残差克里金）",
+    )
+    ix0 = nearest_index(ds_all.gx, win_x0)
+    ix1 = nearest_index(ds_all.gx, win_x0 + win_w)
+    iy0 = nearest_index(ds_all.gy, win_y0)
+    iy1 = nearest_index(ds_all.gy, win_y0 + win_h)
+    if ix1 <= ix0:
+        ix1 = min(len(ds_all.gx) - 1, ix0 + 1)
+    if iy1 <= iy0:
+        iy1 = min(len(ds_all.gy) - 1, iy0 + 1)
+    holes_win = holes_all[
+        (holes_all[:, 0] >= ds_all.gx[ix0])
+        & (holes_all[:, 0] <= ds_all.gx[ix1])
+        & (holes_all[:, 1] >= ds_all.gy[iy0])
+        & (holes_all[:, 1] <= ds_all.gy[iy1])
+    ]
+    plot_orthogonal_trislices(
+        res_all.S_F[ix0:ix1 + 1, iy0:iy1 + 1, :],
+        ds_all.gx[ix0:ix1 + 1], ds_all.gy[iy0:iy1 + 1], ds_all.gz,
+        ix=(ix0 + ix1) // 2 - ix0,
+        iy=(iy0 + iy1) // 2 - iy0,
+        iz=zi,
+        outfile=os.path.join(args.outdir, "trislices.png"),
+        title=f"融合插值三维三正交切面（20×50 m 工作面，{elev:.0f} m 标高）",
+        holes_xy=holes_win, vmin=vmin, vmax=vmax,
     )
 
     m_all = {
@@ -477,7 +517,7 @@ def main() -> None:
         mwd_panels, ds_all.gx, ds_all.gy, zi,
         os.path.join(args.outdir, "well_series_mwd.png"),
         cbar_label="UCS (MPa)", vmin=vmin, vmax=vmax, ncols=4,
-        suptitle=f"{elev:.0f} m 标高仅钻孔克里金插值：钻孔由 1 口增至 {args.n_holes} 口",
+        suptitle=f"{elev:.0f} m 标高钻孔插值：钻孔由 1 口增至 {args.n_holes} 口",
     )
     plot_slice_grid(
         err_panels, ds_all.gx, ds_all.gy, zi,

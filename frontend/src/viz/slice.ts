@@ -1,5 +1,6 @@
 import type { FieldVolume, Manifest, SliceAxis } from "../types";
 import { idx } from "../data/loader";
+import type { ViewCrop } from "./window";
 
 export interface Slice2D {
   w: number;
@@ -15,48 +16,55 @@ export function extractSlice(
   m: Manifest,
   axis: SliceAxis,
   index: number,
+  crop?: ViewCrop | null,
 ): Slice2D {
   const { nx, ny, nz } = m.grid;
   const { x, y, z } = m.axes;
   const d = vol.data;
+  const ix0 = crop?.ix0 ?? 0;
+  const ix1 = crop?.ix1 ?? nx - 1;
+  const iy0 = crop?.iy0 ?? 0;
+  const iy1 = crop?.iy1 ?? ny - 1;
 
   if (axis === "z") {
-    const w = nx, h = ny;
+    const iz = Math.min(nz - 1, Math.max(0, index));
+    const w = ix1 - ix0 + 1, h = iy1 - iy0 + 1;
     const values = new Float32Array(w * h);
-    for (let ix = 0; ix < nx; ix++)
-      for (let iy = 0; iy < ny; iy++)
-        values[(ny - 1 - iy) * w + ix] = d[idx(ix, iy, index, ny, nz)];
+    for (let ix = ix0; ix <= ix1; ix++)
+      for (let iy = iy0; iy <= iy1; iy++)
+        values[(iy1 - iy) * w + (ix - ix0)] = d[idx(ix, iy, iz, ny, nz)];
     return {
       w, h, values,
-      horiz: { coords: x, label: "X (m)" },
-      vert: { coords: y, label: "Y (m)" },
-      extent: [x[0], x[nx - 1], y[0], y[ny - 1]],
+      horiz: { coords: x.slice(ix0, ix1 + 1), label: "X (m)" },
+      vert: { coords: y.slice(iy0, iy1 + 1), label: "Y (m)" },
+      extent: [x[ix0], x[ix1], y[iy0], y[iy1]],
     };
   }
   if (axis === "x") {
-    const w = ny, h = nz;
+    const ix = Math.min(ix1, Math.max(ix0, index));
+    const w = iy1 - iy0 + 1, h = nz;
     const values = new Float32Array(w * h);
-    for (let iy = 0; iy < ny; iy++)
+    for (let iy = iy0; iy <= iy1; iy++)
       for (let iz = 0; iz < nz; iz++)
-        values[iz * w + iy] = d[idx(index, iy, iz, ny, nz)];
+        values[iz * w + (iy - iy0)] = d[idx(ix, iy, iz, ny, nz)];
     return {
       w, h, values,
-      horiz: { coords: y, label: "Y (m)" },
+      horiz: { coords: y.slice(iy0, iy1 + 1), label: "Y (m)" },
       vert: { coords: z, label: "标高 (m)" },
-      extent: [y[0], y[ny - 1], z[nz - 1], z[0]],
+      extent: [y[iy0], y[iy1], z[nz - 1], z[0]],
     };
   }
-  // axis === "y"
-  const w = nx, h = nz;
+  const iy = Math.min(iy1, Math.max(iy0, index));
+  const w = ix1 - ix0 + 1, h = nz;
   const values = new Float32Array(w * h);
-  for (let ix = 0; ix < nx; ix++)
+  for (let ix = ix0; ix <= ix1; ix++)
     for (let iz = 0; iz < nz; iz++)
-      values[iz * w + ix] = d[idx(ix, index, iz, ny, nz)];
+      values[iz * w + (ix - ix0)] = d[idx(ix, iy, iz, ny, nz)];
   return {
     w, h, values,
-    horiz: { coords: x, label: "X (m)" },
+    horiz: { coords: x.slice(ix0, ix1 + 1), label: "X (m)" },
     vert: { coords: z, label: "标高 (m)" },
-    extent: [x[0], x[nx - 1], z[nz - 1], z[0]],
+    extent: [x[ix0], x[ix1], z[nz - 1], z[0]],
   };
 }
 

@@ -173,7 +173,7 @@ def plot_field_residual_grid(
     holes_xy: np.ndarray | None = None,
     true_title: str = "(a) 强度真值",
     field_cbar: str = "UCS (MPa)",
-    residual_cbar: str = r"预测 $-$ 真值 (MPa)",
+    residual_cbar: str = "预测 − 真值 (MPa)",
     suptitle: str = "",
     levels: int = 20,
 ):
@@ -223,7 +223,7 @@ def plot_field_residual_grid(
     axes[1, 0].axis("off")
     axes[1, 0].text(
         0.5, 0.55,
-        "下行：预测 $-$ 真值\n红＝估计偏高\n蓝＝估计偏低\n越浅越好",
+        "下行：预测 − 真值\n红＝估计偏高\n蓝＝估计偏低\n越浅越好",
         transform=axes[1, 0].transAxes, ha="center", va="center",
         fontsize=11, linespacing=1.6,
     )
@@ -250,5 +250,240 @@ def plot_field_residual_grid(
     if suptitle:
         fig.suptitle(suptitle, fontsize=13)
     fig.savefig(outfile, dpi=150)
+    plt.close(fig)
+    return outfile
+
+
+TRISLICES_FIGSIZE = (12.0, 7.6)
+
+
+def _cad_3d_axes(ax):
+    """White CAD/SolidWorks-like 3-D panes for screenshot-friendly figures."""
+    ax.set_facecolor("white")
+    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+        axis.pane.set_facecolor((1.0, 1.0, 1.0, 1.0))
+        axis.pane.set_edgecolor((0.72, 0.74, 0.78, 1.0))
+        axis.pane.set_alpha(1.0)
+        axis.line.set_color((0.45, 0.47, 0.50, 1.0))
+    ax.grid(True, color="#d5d8de", linestyle="-", linewidth=0.4)
+    ax.tick_params(colors="#333333")
+    ax.xaxis.label.set_color("#222222")
+    ax.yaxis.label.set_color("#222222")
+    ax.zaxis.label.set_color("#222222")
+    ax.view_init(elev=22, azim=-58)
+
+
+def plot_orthogonal_trislices(
+    field: np.ndarray,
+    gx: np.ndarray,
+    gy: np.ndarray,
+    gz: np.ndarray,
+    ix: int,
+    iy: int,
+    iz: int,
+    outfile: str,
+    title: str = "",
+    cbar_label: str = "UCS (MPa)",
+    holes_xy: np.ndarray | None = None,
+    cmap: str = "viridis",
+    vmin: float | None = None,
+    vmax: float | None = None,
+    scale: float = 1.0,
+    levels: int = 20,
+):
+    """Publication figure: 3-D orthogonal planes plus XY / XZ / YZ slices.
+
+    White background (AutoCAD / SolidWorks / matplotlib light style).  The
+    three cutting planes share one colour scale with the 2-D panels.
+    """
+    configure_cjk_font()
+    vol = np.asarray(field, dtype=float) / float(scale)
+    gx = np.asarray(gx, dtype=float)
+    gy = np.asarray(gy, dtype=float)
+    gz = np.asarray(gz, dtype=float)
+    nx, ny, nz = vol.shape
+    ix = int(np.clip(ix, 0, nx - 1))
+    iy = int(np.clip(iy, 0, ny - 1))
+    iz = int(np.clip(iz, 0, nz - 1))
+    lo = float(np.nanmin(vol) if vmin is None else vmin / scale)
+    hi = float(np.nanmax(vol) if vmax is None else vmax / scale)
+    if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
+        hi = lo + 1.0
+    lev = np.linspace(lo, hi, int(levels))
+    xc, yc, zc = float(gx[ix]), float(gy[iy]), float(gz[iz])
+
+    xy = vol[:, :, iz].T  # (ny, nx)
+    xz = vol[:, iy, :].T  # (nz, nx)
+    yz = vol[ix, :, :].T  # (nz, ny)
+
+    fig = plt.figure(figsize=TRISLICES_FIGSIZE, facecolor="white")
+    gs = fig.add_gridspec(2, 3, height_ratios=[1.35, 1.0], hspace=0.32, wspace=0.28)
+    ax3d = fig.add_subplot(gs[0, :], projection="3d", facecolor="white")
+    ax_xy = fig.add_subplot(gs[1, 0])
+    ax_xz = fig.add_subplot(gs[1, 1])
+    ax_yz = fig.add_subplot(gs[1, 2])
+
+    from matplotlib import cm
+    from matplotlib.colors import Normalize
+
+    norm = Normalize(vmin=lo, vmax=hi)
+    cmap_obj = plt.get_cmap(cmap)
+    xx_xy, yy_xy = np.meshgrid(gx, gy)
+    zz_xy = np.full_like(xx_xy, zc)
+    xx_xz, zz_xz = np.meshgrid(gx, gz)
+    yy_xz = np.full_like(xx_xz, yc)
+    yy_yz, zz_yz = np.meshgrid(gy, gz)
+    xx_yz = np.full_like(yy_yz, xc)
+    kw = dict(rstride=1, cstride=1, linewidth=0, antialiased=False, shade=False)
+    ax3d.plot_surface(xx_xy, yy_xy, zz_xy, facecolors=cmap_obj(norm(xy)), **kw)
+    ax3d.plot_surface(xx_xz, yy_xz, zz_xz, facecolors=cmap_obj(norm(xz)), **kw)
+    ax3d.plot_surface(xx_yz, yy_yz, zz_yz, facecolors=cmap_obj(norm(yz)), **kw)
+    cf3 = cm.ScalarMappable(norm=norm, cmap=cmap_obj)
+    cf3.set_array([])
+    if holes_xy is not None and len(holes_xy):
+        hx = np.asarray(holes_xy)[:, 0]
+        hy = np.asarray(holes_xy)[:, 1]
+        ax3d.scatter(hx, hy, np.full_like(hx, zc), s=12, c="k", depthshade=False)
+    _cad_3d_axes(ax3d)
+    ax3d.set_xlim(float(gx[0]), float(gx[-1]))
+    ax3d.set_ylim(float(gy[0]), float(gy[-1]))
+    z0, z1 = float(gz[0]), float(gz[-1])
+    ax3d.set_zlim(min(z0, z1), max(z0, z1))
+    try:
+        # Mild aspect so a 20×50 m face still fills the 3-D panel.
+        ax3d.set_box_aspect((1.0, 1.6, 1.15))
+    except Exception:
+        pass
+    ax3d.set_xlabel("X (m)")
+    ax3d.set_ylabel("Y (m)")
+    ax3d.set_zlabel("Z (m)")
+    ax3d.set_title(
+        f"三正交切面  X={xc:.0f} m, Y={yc:.0f} m, Z={zc:.0f} m",
+        pad=8,
+    )
+
+    xx, yy = np.meshgrid(gx, gy, indexing="ij")
+    ax_xy.contourf(xx, yy, vol[:, :, iz], levels=lev, cmap=cmap, extend="both")
+    ax_xy.contour(xx, yy, vol[:, :, iz], levels=lev, colors="k",
+                  linewidths=0.3, linestyles="--", alpha=0.4)
+    _draw_holes(ax_xy, holes_xy, s_outer=55, s_inner=8)
+    ax_xy.axhline(yc, color="w", lw=0.8, alpha=0.85)
+    ax_xy.axvline(xc, color="w", lw=0.8, alpha=0.85)
+    _style_slice_ax(ax_xy, gx, gy, f"XY  标高 {zc:.0f} m")
+
+    ax_xz.contourf(gx, gz, xz, levels=lev, cmap=cmap, extend="both")
+    ax_xz.contour(gx, gz, xz, levels=lev, colors="k", linewidths=0.3,
+                  linestyles="--", alpha=0.4)
+    ax_xz.axhline(zc, color="w", lw=0.8, alpha=0.85)
+    ax_xz.axvline(xc, color="w", lw=0.8, alpha=0.85)
+    ax_xz.set_xlabel("X (m)")
+    ax_xz.set_ylabel("Z (m)")
+    ax_xz.set_title(f"XZ  Y={yc:.0f} m")
+    ax_xz.set_xlim(gx[0], gx[-1])
+    ax_xz.set_ylim(min(z0, z1), max(z0, z1))
+    ax_xz.set_aspect("auto")
+
+    ax_yz.contourf(gy, gz, yz, levels=lev, cmap=cmap, extend="both")
+    ax_yz.contour(gy, gz, yz, levels=lev, colors="k", linewidths=0.3,
+                  linestyles="--", alpha=0.4)
+    ax_yz.axhline(zc, color="w", lw=0.8, alpha=0.85)
+    ax_yz.axvline(yc, color="w", lw=0.8, alpha=0.85)
+    ax_yz.set_xlabel("Y (m)")
+    ax_yz.set_ylabel("Z (m)")
+    ax_yz.set_title(f"YZ  X={xc:.0f} m")
+    ax_yz.set_xlim(gy[0], gy[-1])
+    ax_yz.set_ylim(min(z0, z1), max(z0, z1))
+    ax_yz.set_aspect("auto")
+
+    cbar = fig.colorbar(cf3, ax=[ax3d, ax_xy, ax_xz, ax_yz], shrink=0.55, pad=0.02)
+    if cbar_label:
+        cbar.set_label(cbar_label)
+    if title:
+        fig.suptitle(title, fontsize=13)
+    fig.savefig(outfile, dpi=150, facecolor="white")
+    plt.close(fig)
+    return outfile
+
+
+def plot_spherical_variogram(
+    outfile: str,
+    range_m: float = 16.5,
+    sill: float = 1.0,
+    nugget: float = 0.05,
+    title: str = "球状变差函数",
+):
+    """Textbook spherical variogram used by the ordinary-kriging residual model."""
+    configure_cjk_font()
+    h = np.linspace(0.0, 2.4 * range_m, 400)
+    a = float(range_m)
+    c0, c1 = float(nugget), float(sill) - float(nugget)
+    gamma = np.empty_like(h)
+    inside = h < a
+    t = h[inside] / a
+    gamma[inside] = c0 + c1 * (1.5 * t - 0.5 * t ** 3)
+    gamma[~inside] = c0 + c1
+    fig, ax = plt.subplots(figsize=(6.4, 4.2))
+    ax.plot(h, gamma, color="#1f4e79", lw=2.0, label=r"$\gamma(h)$")
+    ax.axhline(sill, color="#888", ls="--", lw=1.0, label=f"sill C0+C={sill:g}")
+    ax.axvline(a, color="#c45c26", ls="--", lw=1.0, label=rf"range $a={a:g}\,\mathrm{{m}}$")
+    ax.scatter([0], [c0], s=28, c="#333", zorder=5, label=f"nugget C0={c0:g}")
+    ax.set_xlabel(r"$h$ (m)")
+    ax.set_ylabel(r"$\gamma(h)$")
+    ax.set_title(title)
+    ax.set_xlim(0, h[-1])
+    ax.set_ylim(0, 1.15 * sill)
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=9, loc="lower right")
+    fig.tight_layout()
+    fig.savefig(outfile, dpi=150, facecolor="white")
+    plt.close(fig)
+    return outfile
+
+
+def plot_working_face(
+    field: np.ndarray,
+    gx: np.ndarray,
+    gy: np.ndarray,
+    z_index: int,
+    outfile: str,
+    x0: float,
+    y0: float,
+    width: float = 20.0,
+    height: float = 50.0,
+    title: str = "工作面窗口（20×50 m）",
+    holes_xy: np.ndarray | None = None,
+    vmin: float | None = None,
+    vmax: float | None = None,
+):
+    """Full-block slice with the 20×50 m working-face window drawn on top."""
+    configure_cjk_font()
+    from matplotlib.patches import Rectangle
+
+    vol = np.asarray(field, dtype=float)
+    data = vol[:, :, z_index]
+    xx, yy = np.meshgrid(gx, gy, indexing="ij")
+    lo = float(np.nanmin(data) if vmin is None else vmin)
+    hi = float(np.nanmax(data) if vmax is None else vmax)
+    lev = np.linspace(lo, hi, 20)
+    fig, ax = plt.subplots(figsize=(7.2, 5.6))
+    cf = ax.contourf(xx, yy, data, levels=lev, cmap="viridis", extend="both")
+    ax.contour(xx, yy, data, levels=lev, colors="k", linewidths=0.3,
+               linestyles="--", alpha=0.4)
+    _draw_holes(ax, holes_xy, s_outer=70, s_inner=9)
+    rect = Rectangle(
+        (x0, y0), width, height, fill=False, edgecolor="#d62728",
+        linewidth=2.0, linestyle="-", zorder=7,
+    )
+    ax.add_patch(rect)
+    ax.text(
+        x0 + 0.6, y0 + height - 1.6,
+        f"{width:.0f}×{height:.0f} m 工作面",
+        color="#d62728", fontsize=11, va="top",
+    )
+    _style_slice_ax(ax, gx, gy, title)
+    cbar = fig.colorbar(cf, ax=ax)
+    cbar.set_label("UCS (MPa)")
+    fig.tight_layout()
+    fig.savefig(outfile, dpi=150, facecolor="white")
     plt.close(fig)
     return outfile

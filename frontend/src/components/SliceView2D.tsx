@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useStore } from "../store";
 import { buildLUT } from "../viz/colormaps";
 import { drawScaled, extractSlice, sliceToImageData } from "../viz/slice";
+import { cropWindow } from "../viz/window";
 import { t } from "../i18n";
 
 export default function SliceView2D() {
@@ -14,16 +15,22 @@ export default function SliceView2D() {
   const wells = useStore((s) => s.wells);
   const showBoreholes = useStore((s) => s.showBoreholes);
   const field = useStore((s) => s.currentField());
+  const winX0 = useStore((s) => s.winX0);
+  const winY0 = useStore((s) => s.winY0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cbarRef = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<string>("");
 
   const lut = useMemo(() => buildLUT(colormap, reverse), [colormap, reverse]);
+  const crop = useMemo(
+    () => (manifest ? cropWindow(manifest, winX0, winY0) : null),
+    [manifest, winX0, winY0],
+  );
 
   const slice = useMemo(() => {
     if (!manifest || !field) return null;
-    return extractSlice(field, manifest, axis, sliceIndex[axis]);
-  }, [manifest, field, axis, sliceIndex]);
+    return extractSlice(field, manifest, axis, sliceIndex[axis], crop);
+  }, [manifest, field, axis, sliceIndex, crop]);
 
   const vmin = field?.meta.min ?? 0;
   const vmax = field?.meta.max ?? 1;
@@ -45,6 +52,7 @@ export default function SliceView2D() {
       const ctx = cv.getContext("2d")!;
       const [x0, x1, y0, y1] = slice.extent;
       for (const w of wells) {
+        if (crop && (w.x < crop.x0 || w.x > crop.x1 || w.y < crop.y0 || w.y > crop.y1)) continue;
         const px = ((w.x - x0) / (x1 - x0)) * W;
         const py = (1 - (w.y - y0) / (y1 - y0)) * H;
         ctx.beginPath();
@@ -58,7 +66,7 @@ export default function SliceView2D() {
         ctx.fill();
       }
     }
-  }, [slice, lut, vmin, vmax, showBoreholes, axis, wells, manifest]);
+  }, [slice, lut, vmin, vmax, showBoreholes, axis, wells, manifest, crop]);
 
   // Colorbar
   useEffect(() => {
