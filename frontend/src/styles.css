@@ -30,7 +30,12 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { height: 100%; margin: 0; overflow: hidden; }
+html, body, #root {
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  overflow: hidden;
+}
 body {
   color: var(--text);
   background:
@@ -45,7 +50,7 @@ body {
 }
 .fullscreen.error { color: #ff453a; }
 
-.app { display: flex; flex-direction: column; height: 100%; height: 100dvh; }
+.app { display: flex; flex-direction: column; height: 100%; }
 
 /* Translucent macOS toolbar */
 .app-header {
@@ -81,8 +86,8 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 .sidebar.right { border-right: none; border-left: 1px solid var(--border); }
-.stage { min-width: 0; display: flex; padding: 18px; }
-.stage-inner { flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0; will-change: transform, opacity; }
+.stage { min-width: 0; min-height: 0; display: flex; padding: 18px; overflow: hidden; }
+.stage-inner { flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; will-change: transform, opacity; }
 .stage-inner.is-compare { align-items: stretch; justify-content: stretch; }
 
 section { margin-bottom: 20px; }
@@ -175,10 +180,20 @@ button.mini.add { margin-top: 4px; }
 button.mini:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* 2D slice */
-.slice2d { width: 100%; max-width: 860px; }
-.slice2d-main { display: flex; gap: 14px; align-items: stretch; }
+.slice2d { width: 100%; max-width: 860px; min-width: 0; }
+.slice2d-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
 .slice-canvas {
-  width: 100%; border-radius: var(--radius); background: #05070c;
+  width: 100%;
+  max-height: calc(100dvh - 8rem);
+  object-fit: contain;
+  border-radius: var(--radius); background: #05070c;
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
@@ -318,6 +333,7 @@ a.download:hover { text-decoration: underline; }
   }
   .stage-inner { min-height: 0; height: 100%; width: 100%; }
   .view3d { min-height: 0; height: 100%; }
+  .slice-canvas { max-height: calc(100dvh - var(--dock-h) - 4.5rem); }
 
   .sidebar {
     position: fixed;
@@ -441,6 +457,7 @@ a.download:hover { text-decoration: underline; }
 
   .compare-row { min-width: 520px; }
   .compare2d { overflow: auto; }
+  .hover-readout { display: none; }
 }
 
 @media (max-width: 1099px) and (max-height: 500px) {
