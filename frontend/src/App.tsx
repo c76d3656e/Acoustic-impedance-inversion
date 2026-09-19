@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import clsx from "clsx";
 import { useStore } from "./store";
 import { t } from "./i18n";
 import ControlPanel from "./components/ControlPanel";
@@ -13,6 +14,63 @@ import FigureExport from "./components/FigureExport";
 const Volume3D = lazy(() => import("./components/Volume3D"));
 
 const easeOut = [0.16, 1, 0.3, 1] as const;
+const sheetSpring = { type: "spring" as const, bounce: 0, duration: 0.4 };
+const DESKTOP_MQ = "(min-width: 1100px)";
+
+type MobilePane = "scene" | "controls" | "data";
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(DESKTOP_MQ).matches : true,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(DESKTOP_MQ);
+    const onChange = () => setIsDesktop(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return isDesktop;
+}
+
+function SheetHead({ title, onClose }: { title: string; onClose: () => void }) {
+  return (
+    <div className="sheet-head">
+      <span className="sheet-handle" aria-hidden />
+      <h2>{title}</h2>
+      <button type="button" className="sheet-close" onClick={onClose} aria-label={t.mobileClose}>
+        {t.mobileClose}
+      </button>
+    </div>
+  );
+}
+
+function DockIconSliders() {
+  return (
+    <svg className="dock-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 8h16M4 16h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="9" cy="8" r="2.3" fill="currentColor" />
+      <circle cx="15" cy="16" r="2.3" fill="currentColor" />
+    </svg>
+  );
+}
+
+function DockIconScene() {
+  return (
+    <svg className="dock-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3.5" y="5" width="17" height="14" rx="2.5" stroke="currentColor" strokeWidth="2" />
+      <path d="M7 15.5 10.2 12l2 2 3.2-3.8 4.1 5.3H7z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function DockIconWell() {
+  return (
+    <svg className="dock-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="6.2" r="2.4" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 8.6V20M9 20h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export default function App() {
   const ready = useStore((s) => s.ready);
@@ -20,10 +78,24 @@ export default function App() {
   const init = useStore((s) => s.init);
   const view = useStore((s) => s.view);
   const title = useStore((s) => s.manifest?.title_zh);
+  const isDesktop = useIsDesktop();
+  const [mobilePane, setMobilePane] = useState<MobilePane>("scene");
 
   useEffect(() => {
     init();
   }, [init]);
+
+  useEffect(() => {
+    if (isDesktop) setMobilePane("scene");
+  }, [isDesktop]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && mobilePane !== "scene") setMobilePane("scene");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobilePane]);
 
   if (error) return <div className="fullscreen error">加载错误：{error}</div>;
   if (!ready)
@@ -39,8 +111,12 @@ export default function App() {
       </div>
     );
 
+  const closeSheet = () => setMobilePane("scene");
+  const controlsOpen = isDesktop || mobilePane === "controls";
+  const dataOpen = isDesktop || mobilePane === "data";
+
   return (
-    <div className="app">
+    <div className={clsx("app", !isDesktop && "is-mobile")}>
       <header className="app-header">
         <div className="traffic" aria-hidden>
           <span className="tl red" />
@@ -53,11 +129,20 @@ export default function App() {
 
       <div className="app-body">
         <motion.aside
-          className="sidebar left"
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.45, ease: easeOut }}
+          className={clsx("sidebar left", mobilePane === "controls" && "is-open")}
+          initial={false}
+          animate={
+            isDesktop
+              ? { opacity: 1, x: 0, y: 0 }
+              : { x: 0, y: mobilePane === "controls" ? "0%" : "110%" }
+          }
+          transition={sheetSpring}
+          role={!isDesktop ? "dialog" : undefined}
+          aria-modal={!isDesktop && mobilePane === "controls" ? true : undefined}
+          aria-hidden={!controlsOpen}
+          aria-label={t.mobileControls}
         >
+          {!isDesktop && <SheetHead title={t.mobileControls} onClose={closeSheet} />}
           <ControlPanel />
         </motion.aside>
 
@@ -85,11 +170,20 @@ export default function App() {
         </main>
 
         <motion.aside
-          className="sidebar right"
-          initial={{ opacity: 0, x: 10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.45, ease: easeOut }}
+          className={clsx("sidebar right", mobilePane === "data" && "is-open")}
+          initial={false}
+          animate={
+            isDesktop
+              ? { opacity: 1, x: 0, y: 0 }
+              : { x: 0, y: mobilePane === "data" ? "0%" : "110%" }
+          }
+          transition={sheetSpring}
+          role={!isDesktop ? "dialog" : undefined}
+          aria-modal={!isDesktop && mobilePane === "data" ? true : undefined}
+          aria-hidden={!dataOpen}
+          aria-label={t.mobileData}
         >
+          {!isDesktop && <SheetHead title={t.mobileData} onClose={closeSheet} />}
           <section>
             <h3>{t.panelWells}</h3>
             <WellPanel />
@@ -100,6 +194,52 @@ export default function App() {
           </section>
         </motion.aside>
       </div>
+
+      <AnimatePresence>
+        {!isDesktop && mobilePane !== "scene" && (
+          <motion.button
+            key="scrim"
+            type="button"
+            className="mobile-scrim"
+            aria-label={t.mobileClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={closeSheet}
+          />
+        )}
+      </AnimatePresence>
+
+      <nav className="mobile-dock" aria-label={t.mobileDock}>
+        <button
+          type="button"
+          className={clsx("dock-btn", mobilePane === "controls" && "on")}
+          aria-pressed={mobilePane === "controls"}
+          onClick={() => setMobilePane((p) => (p === "controls" ? "scene" : "controls"))}
+        >
+          <DockIconSliders />
+          <span>{t.mobileControls}</span>
+        </button>
+        <button
+          type="button"
+          className={clsx("dock-btn", mobilePane === "scene" && "on")}
+          aria-pressed={mobilePane === "scene"}
+          onClick={closeSheet}
+        >
+          <DockIconScene />
+          <span>{t.mobileScene}</span>
+        </button>
+        <button
+          type="button"
+          className={clsx("dock-btn", mobilePane === "data" && "on")}
+          aria-pressed={mobilePane === "data"}
+          onClick={() => setMobilePane((p) => (p === "data" ? "scene" : "data"))}
+        >
+          <DockIconWell />
+          <span>{t.mobileData}</span>
+        </button>
+      </nav>
     </div>
   );
 }
