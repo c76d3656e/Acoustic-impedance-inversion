@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useStore } from "./store";
 import { t } from "./i18n";
 import ControlPanel from "./components/ControlPanel";
+import VizControls from "./components/VizControls";
 import SliceView2D from "./components/SliceView2D";
 import CompareView2D from "./components/CompareView2D";
 import WellPanel from "./components/WellPanel";
@@ -50,15 +51,6 @@ function DockIconSliders() {
       <path d="M4 8h16M4 16h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <circle cx="9" cy="8" r="2.3" fill="currentColor" />
       <circle cx="15" cy="16" r="2.3" fill="currentColor" />
-    </svg>
-  );
-}
-
-function DockIconScene() {
-  return (
-    <svg className="dock-icon" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="3.5" y="5" width="17" height="14" rx="2.5" stroke="currentColor" strokeWidth="2" />
-      <path d="M7 15.5 10.2 12l2 2 3.2-3.8 4.1 5.3H7z" fill="currentColor" />
     </svg>
   );
 }
@@ -143,7 +135,7 @@ export default function App() {
           aria-label={t.mobileControls}
         >
           {!isDesktop && <SheetHead title={t.mobileControls} onClose={closeSheet} />}
-          <ControlPanel />
+          <ControlPanel omitViz={!isDesktop} />
         </motion.aside>
 
         <main className="stage">
@@ -167,6 +159,11 @@ export default function App() {
               )}
             </motion.div>
           </AnimatePresence>
+          {!isDesktop && (
+            <div className="viz-hud" aria-label={t.mobileHud}>
+              <VizControls compact />
+            </div>
+          )}
         </main>
 
         <motion.aside
@@ -220,15 +217,6 @@ export default function App() {
         >
           <DockIconSliders />
           <span>{t.mobileControls}</span>
-        </button>
-        <button
-          type="button"
-          className={clsx("dock-btn", mobilePane === "scene" && "on")}
-          aria-pressed={mobilePane === "scene"}
-          onClick={closeSheet}
-        >
-          <DockIconScene />
-          <span>{t.mobileScene}</span>
         </button>
         <button
           type="button"
