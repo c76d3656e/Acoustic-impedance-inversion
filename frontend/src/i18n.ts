@@ -33,6 +33,7 @@ export const t = {
   viewCompare: "融合对比",
   showBoreholes: "显示钻孔",
   sliceWysiwygHint: "三维、二维与出图共用这一切片，移动滑条即所见即所得。",
+  webglError: "此浏览器无法创建 WebGL 上下文，三维视图不可用。",
 
   exportKind: "出图类型",
   exportKindSlice: "当前切片",

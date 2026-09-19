@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { Component, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { useShallow } from "zustand/react/shallow";
@@ -7,6 +7,8 @@ import { useStore } from "../store";
 import { buildLUT } from "../viz/colormaps";
 import { drawScaled, extractSlice, sliceToImageData } from "../viz/slice";
 import type { FieldVolume, Manifest, SliceAxis, Well } from "../types";
+
+import { t } from "../i18n";
 
 const S = 1 / 100; // meters -> world units
 const AXES: SliceAxis[] = ["x", "y", "z"];
@@ -254,6 +256,17 @@ function Scene() {
   );
 }
 
+class GLErrorBoundary extends Component<{ children: ReactNode }, { err: string | null }> {
+  state: { err: string | null } = { err: null };
+  static getDerivedStateFromError(e: Error) {
+    return { err: e.message || "WebGL" };
+  }
+  render() {
+    if (this.state.err) return <div className="loading3d">{t.webglError}</div>;
+    return this.props.children;
+  }
+}
+
 export default function Volume3D() {
   const manifest = useStore((s) => s.manifest);
   const cam = useMemo<[number, number, number]>(() => {
@@ -264,10 +277,16 @@ export default function Volume3D() {
   if (!manifest) return null;
   return (
     <div className="view3d">
-      <Canvas camera={{ position: cam, fov: 45, up: [0, 0, 1] }} dpr={[1, 2]} gl={{ antialias: true }}>
-        <color attach="background" args={["#0b0e14"]} />
-        <Scene />
-      </Canvas>
+      <GLErrorBoundary>
+        <Canvas
+          camera={{ position: cam, fov: 45, up: [0, 0, 1] }}
+          dpr={[1, 2]}
+          gl={{ antialias: true, failIfMajorPerformanceCaveat: false, powerPreference: "high-performance" }}
+        >
+          <color attach="background" args={["#0b0e14"]} />
+          <Scene />
+        </Canvas>
+      </GLErrorBoundary>
     </div>
   );
 }
