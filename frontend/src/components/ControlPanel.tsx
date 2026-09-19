@@ -177,12 +177,11 @@ export default function ControlPanel() {
         </div>
       </section>
 
-      {view !== "compare" && (
       <section>
         <h3>{t.panelColormap}</h3>
         <ColormapEditor />
+        {view === "compare" && <p className="hint">{t.compareColormapHint}</p>}
       </section>
-      )}
     </div>
   );
 }

@@ -56,15 +56,9 @@ def test_slice_png_matches_docs_canvas():
     assert (w, h) == (1080, 840)
 
 
-def test_compare_png_matches_docs_canvas_not_equal_aspect():
-    mod = _load()
-    nx, ny = 25, 40
-    truth = _origin_upper(nx, ny, lambda ix, iy: 40 + 8 * np.exp(-((ix - 18) ** 2 + (iy - 16) ** 2) / 40))
-    mwd = truth + 6.0
-    seis = truth - 3.0
-    fused = truth + 1.0
-    b64 = mod.render_compare({
-        "w": nx, "h": ny,
+def _compare_payload(truth, mwd, seis, fused, **extra):
+    payload = {
+        "w": 25, "h": 40,
         "extent": [0.0, 50.0, 0.0, 80.0],
         "horizLabel": "X (m)", "vertLabel": "Y (m)",
         "title": "融合优势对比",
@@ -77,11 +71,53 @@ def test_compare_png_matches_docs_canvas_not_equal_aspect():
             {"title": "(c) 仅波阻抗标定", "residualTitle": "(f) 仅波阻抗 $-$ 真值", "values": seis.tolist()},
             {"title": "(d) 外漂移克里金融合", "residualTitle": "(g) 融合 $-$ 真值", "values": fused.tolist()},
         ],
-    })
+    }
+    payload.update(extra)
+    return payload
+
+
+def _compare_fields():
+    nx, ny = 25, 40
+    truth = _origin_upper(nx, ny, lambda ix, iy: 40 + 8 * np.exp(-((ix - 18) ** 2 + (iy - 16) ** 2) / 40))
+    return truth, truth + 6.0, truth - 3.0, truth + 1.0
+
+
+def test_compare_png_matches_docs_canvas_not_equal_aspect():
+    mod = _load()
+    b64 = mod.render_compare(_compare_payload(*_compare_fields()))
     w, h = _png_wh(b64)
     # docs/images/fusion_advantage.png is 2220×990 (14.8×6.6 in @ 150 dpi).
     assert (w, h) == (2220, 990)
     assert abs(w / h - 2.242) < 0.02
+
+
+def test_compare_png_uses_cmap_stops_not_locked_viridis():
+    """Top-row fields follow cmapStops; missing stops still fall back to viridis."""
+    mod = _load()
+    fields = _compare_fields()
+    viridis = mod.render_compare(_compare_payload(*fields))
+    magma = mod.render_compare(_compare_payload(
+        *fields,
+        reverse=False,
+        cmapStops=[
+            {"pos": 0.0, "color": [0, 0, 4]},
+            {"pos": 0.5, "color": [140, 41, 129]},
+            {"pos": 1.0, "color": [252, 253, 191]},
+        ],
+    ))
+    jet = mod.render_compare(_compare_payload(
+        *fields,
+        reverse=True,
+        cmapStops=[
+            {"pos": 0.0, "color": [0, 0, 128]},
+            {"pos": 0.5, "color": [0, 255, 255]},
+            {"pos": 1.0, "color": [128, 0, 0]},
+        ],
+    ))
+    assert _png_wh(viridis) == _png_wh(magma) == _png_wh(jet) == (2220, 990)
+    assert viridis != magma
+    assert magma != jet
+    assert viridis != jet
 
 
 def test_profile_png_matches_docs_canvas():
