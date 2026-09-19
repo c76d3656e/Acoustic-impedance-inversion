@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import NumberFlow from "@number-flow/react";
 import clsx from "clsx";
 import { useStore } from "../store";
-import type { SliceAxis } from "../types";
+import type { SliceAxis, ViewMode } from "../types";
 import { t } from "../i18n";
 import ColormapEditor from "./ColormapEditor";
 
@@ -84,13 +84,14 @@ export default function ControlPanel() {
 
       <section>
         <h3>{t.panelView}</h3>
-        <Segmented
+        <Segmented<ViewMode>
           layoutId="view-seg"
           value={view}
-          onChange={(v) => setView(v as "2d" | "3d")}
+          onChange={(v) => setView(v)}
           options={[
             { value: "2d", label: t.view2d },
             { value: "3d", label: t.view3d },
+            { value: "compare", label: t.viewCompare },
           ]}
         />
         <div className="flags">
@@ -176,10 +177,12 @@ export default function ControlPanel() {
         </div>
       </section>
 
+      {view !== "compare" && (
       <section>
         <h3>{t.panelColormap}</h3>
         <ColormapEditor />
       </section>
+      )}
     </div>
   );
 }

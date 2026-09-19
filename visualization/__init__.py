@@ -4,7 +4,7 @@ from .impedance_map import plot_impedance_map
 from .slice import plot_cross_section_comparison
 from .volume import render_volume, render_isosurface
 from .panels import plot_field_slice, plot_fusion_panels
-from .report_style import plot_report_slice, plot_slice_grid
+from .report_style import plot_report_slice, plot_slice_grid, plot_field_residual_grid
 from .fonts import configure_cjk_font
 from .interactive import (
     export_volume_html,
@@ -21,6 +21,7 @@ __all__ = [
     "plot_fusion_panels",
     "plot_report_slice",
     "plot_slice_grid",
+    "plot_field_residual_grid",
     "configure_cjk_font",
     "export_volume_html",
     "export_isosurface_html",

@@ -2,7 +2,7 @@ r"""Generate the tracked publication figures under ``docs/images/``.
 
 Produces:
 
-* fusion-advantage panels (truth / MWD-only / seismic-only / fused)
+* fusion-advantage panels (truth / MWD / seismic / fused, plus pred−truth heatmaps)
 * a nested well-count series (1 hole, 2 holes, ... all holes) for MWD-only
   interpolation versus impedance-fused strength
 * RMSE / R² curves and a CSV of metrics
@@ -34,6 +34,7 @@ from visualization import (
     configure_cjk_font,
     plot_report_slice,
     plot_slice_grid,
+    plot_field_residual_grid,
 )
 from visualization.report_style import _draw_holes, _style_slice_ax
 
@@ -72,7 +73,7 @@ def plot_metrics_curves(rows, outfile, far_radius: float = 12.0):
 
     axes[0].plot(n, [r["mwd_rmse"] for r in rows], "o-", label="仅钻孔克里金插值")
     axes[0].plot(n, [r["seis_rmse"] for r in rows], "s--", label="仅波阻抗标定")
-    axes[0].plot(n, [r["fused_rmse"] for r in rows], "D-", label="不确定度加权融合")
+    axes[0].plot(n, [r["fused_rmse"] for r in rows], "D-", label="外漂移克里金融合")
     if np.isfinite(rows[0].get("mwd_far_rmse", np.nan)):
         axes[0].plot(n, [r["mwd_far_rmse"] for r in rows], "o:", color="C0",
                      alpha=0.7, label=f"仅钻孔（距孔 > {far_radius:.0f} m）")
@@ -90,7 +91,7 @@ def plot_metrics_curves(rows, outfile, far_radius: float = 12.0):
 
     axes[1].plot(n, [r["mwd_r2"] for r in rows], "o-", label="仅钻孔克里金插值")
     axes[1].plot(n, [r["seis_r2"] for r in rows], "s--", label="仅波阻抗标定")
-    axes[1].plot(n, [r["fused_r2"] for r in rows], "D-", label="不确定度加权融合")
+    axes[1].plot(n, [r["fused_r2"] for r in rows], "D-", label="外漂移克里金融合")
     axes[1].set_xlabel("钻孔数量")
     axes[1].set_ylabel("$R^2$")
     axes[1].set_title("与真值的决定系数随钻孔数变化")
@@ -168,17 +169,94 @@ def hole_trace_rmse(ds, field) -> float:
     return float(rmse_score(ds.ucs_at_holes, np.asarray(field)[ds.hole_ix, ds.hole_iy, ds.hole_iz]))
 
 
+def typical_hole_spacing(ds) -> float:
+    """Median nearest-neighbour hole spacing in metres."""
+    xy = holes_xy(ds)
+    if len(xy) < 2:
+        return 12.0
+    dmin = []
+    for i in range(len(xy)):
+        d = np.hypot(xy[:, 0] - xy[i, 0], xy[:, 1] - xy[i, 1])
+        d[i] = np.inf
+        dmin.append(float(d.min()))
+    return float(np.median(dmin))
+
+
+def plot_hole_layout(ds, z_index, outfile):
+    """Plan-view 梅花 lattice on the UCS slice, with short triangular edges."""
+    from scipy.spatial import Delaunay
+
+    configure_cjk_font()
+    xy = holes_xy(ds)
+    xx, yy = np.meshgrid(ds.gx, ds.gy, indexing="ij")
+    data = np.asarray(ds.ucs_true)[:, :, z_index]
+    vmin, vmax = float(data.min()), float(data.max())
+    lev = np.linspace(vmin, vmax, 20)
+    fig, ax = plt.subplots(figsize=(6.2, 8.0), constrained_layout=True)
+    cf = ax.contourf(xx, yy, data, levels=lev, cmap="viridis", extend="both")
+    ax.contour(xx, yy, data, levels=lev, colors="k", linewidths=0.3,
+               linestyles="--", alpha=0.35)
+    if len(xy) >= 3:
+        tri = Delaunay(xy)
+        max_edge = 1.35 * typical_hole_spacing(ds)
+        drawn = set()
+        for simplex in tri.simplices:
+            for a, b in ((0, 1), (1, 2), (2, 0)):
+                i, j = int(simplex[a]), int(simplex[b])
+                key = (min(i, j), max(i, j))
+                if key in drawn:
+                    continue
+                p, q = xy[i], xy[j]
+                if np.hypot(p[0] - q[0], p[1] - q[1]) <= max_edge:
+                    ax.plot([p[0], q[0]], [p[1], q[1]], color="white",
+                            lw=1.2, alpha=0.85, zorder=3)
+                    ax.plot([p[0], q[0]], [p[1], q[1]], color="k",
+                            lw=0.6, alpha=0.9, zorder=4)
+                    drawn.add(key)
+    _draw_holes(ax, xy, s_outer=90, s_inner=12)
+    _style_slice_ax(ax, ds.gx, ds.gy, "梅花布孔（三角网格近似均匀采样）")
+    cbar = fig.colorbar(cf, ax=ax, shrink=0.9, pad=0.03)
+    cbar.set_label("UCS 真值 (MPa)")
+    fig.savefig(outfile, dpi=150)
+    plt.close(fig)
+    return outfile
+
+
 def plot_along_holes(ds, res, outfile, n_show: int = 2):
-    """UCS vs elevation along the first ``n_show`` unique holes (forced targets)."""
+    """UCS vs elevation along holes nearest the alteration halo and hard body."""
     configure_cjk_font()
     pairs = unique_hole_xy_indices(ds)
-    n_show = min(n_show, len(pairs))
-    titles = ["蚀变晕钻孔（力学残差，波阻抗看不见）", "硬矿体钻孔"]
+    xy = np.column_stack([ds.gx[pairs[:, 0]], ds.gy[pairs[:, 1]]])
+    targets = []
+    labels = []
+    if ds.meta.get("alter_xy") is not None:
+        targets.append(np.asarray(ds.meta["alter_xy"], dtype=float))
+        labels.append("蚀变晕附近钻孔（力学残差）")
+    if ds.meta.get("hard_xy") is not None:
+        targets.append(np.asarray(ds.meta["hard_xy"], dtype=float))
+        labels.append("硬矿体附近钻孔")
+    if not targets:
+        targets = [xy[0]]
+        labels = ["钻孔 1"]
+    used = set()
+    chosen = []
+    titles = []
+    for tgt, lab in zip(targets, labels):
+        d = np.sqrt(((xy - tgt) ** 2).sum(axis=1))
+        for idx in np.argsort(d):
+            key = tuple(pairs[idx])
+            if key not in used:
+                used.add(key)
+                chosen.append(pairs[idx])
+                titles.append(lab)
+                break
+    n_show = min(n_show, len(chosen))
+    chosen, titles = chosen[:n_show], titles[:n_show]
     fig, axes = plt.subplots(1, n_show, figsize=(5.2 * n_show, 5.6),
                              constrained_layout=True, sharey=True)
     axes = np.atleast_1d(axes)
     for k, ax in enumerate(axes):
-        i, j = pairs[k]
+        i, j = chosen[k]
         mask = (ds.hole_ix == i) & (ds.hole_iy == j)
         z = ds.hole_xyz[mask, 2]
         order = np.argsort(z)
@@ -190,7 +268,7 @@ def plot_along_holes(ds, res, outfile, n_show: int = 2):
         ax.plot(true, z, "k-", lw=2.0, label="真值 UCS")
         ax.plot(sz, z, "--", color="C1", lw=1.8, label="仅波阻抗标定")
         ax.plot(sm, z, ":", color="C0", lw=1.8, label="MWD（孔点）")
-        ax.plot(sf, z, "-", color="C2", lw=2.0, label="不确定度加权融合")
+        ax.plot(sf, z, "-", color="C2", lw=2.0, label="外漂移克里金融合")
         ax.set_xlabel("UCS (MPa)")
         ax.set_title(titles[k] if k < len(titles) else f"钻孔 {k+1}")
         ax.grid(True, alpha=0.3)
@@ -198,17 +276,23 @@ def plot_along_holes(ds, res, outfile, n_show: int = 2):
         if k == 0:
             ax.set_ylabel("标高 (m)")
             ax.legend(fontsize=8, loc="best")
-    fig.suptitle("沿孔剖面：钻孔在轨迹上把强度钉回真值，波阻抗给出趋势", fontsize=13)
+    fig.suptitle("沿孔剖面：融合在孔上钉回真值；波阻抗只给出趋势", fontsize=13)
     fig.savefig(outfile, dpi=150)
     plt.close(fig)
     return outfile
 
 
 def plot_mwd_weight(ds, res, z_index, outfile):
-    """Where fusion actually listens to MWD (high only next to holes)."""
-    tau_m = 1.0 / (res.var_M + 1e-12)
-    tau_z = 1.0 / (res.var_Z + 1e-12)
-    w_m = tau_m / (tau_m + tau_z)
+    """Where fusion actually listens to boreholes (Doyen primary weight)."""
+    w_xy = getattr(res, "w_anchor", None)
+    if w_xy is None:
+        tau_m = 1.0 / (res.var_M + 1e-12)
+        tau_z = 1.0 / (res.var_Z + 1e-12)
+        w_m = tau_m / (tau_m + tau_z)
+    else:
+        w_m = np.broadcast_to(
+            np.asarray(w_xy, dtype=float)[:, :, np.newaxis], res.S_F.shape,
+        ).copy()
     elev = float(ds.gz[z_index])
     plot_report_slice(
         w_m, ds.gx, ds.gy, z_index, outfile,
@@ -225,7 +309,8 @@ def main() -> None:
     parser.add_argument("--n-holes", type=int, default=12)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--elevation", type=float, default=-20.0)
-    parser.add_argument("--far-radius", type=float, default=12.0)
+    parser.add_argument("--far-radius", type=float, default=None,
+                        help="Far-field mask (m). Default: 0.4 × median 梅花 hole spacing.")
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -233,6 +318,20 @@ def main() -> None:
 
     print(">> Generating co-located synthetic mine ...")
     ds_all = generate_mine(n_holes=args.n_holes, seed=args.seed)
+    spacing = typical_hole_spacing(ds_all)
+    if args.far_radius is None:
+        args.far_radius = max(5.0, 0.40 * spacing)
+    xy_all = holes_xy(ds_all)
+    pairs = unique_hole_xy_indices(ds_all)
+    print(
+        f"   梅花 n={args.n_holes}  median spacing {spacing:.1f} m  "
+        f"span X {float(xy_all[:, 0].max() - xy_all[:, 0].min()):.1f} m / "
+        f"Y {float(xy_all[:, 1].max() - xy_all[:, 1].min()):.1f} m  "
+        f"corr(AI,UCS)={ds_all.meta['corr_ai_ucs']:.3f}  "
+        f"far-radius {args.far_radius:.1f} m"
+    )
+    for k, (ix, iy) in enumerate(pairs, 1):
+        print(f"     hole {k:2d}  x={ds_all.gx[ix]:6.2f}  y={ds_all.gy[iy]:6.2f}")
     print(">> Running full dual-branch pipeline (impedance inverted once) ...")
     res_all = run_fusion_pipeline(ds_all, seed=args.seed)
     ai_inv = res_all.ai_inv
@@ -267,7 +366,7 @@ def main() -> None:
     plot_report_slice(
         res_all.S_F, ds_all.gx, ds_all.gy, zi,
         os.path.join(args.outdir, "fused_strength.png"),
-        title=f"{elev:.0f} m 标高不确定度加权融合强度场 (MPa)",
+        title=f"{elev:.0f} m 标高外漂移克里金融合强度场 (MPa)",
         cbar_label="UCS (MPa)", holes_xy=holes_all, vmin=vmin, vmax=vmax,
     )
     plot_report_slice(
@@ -277,16 +376,17 @@ def main() -> None:
         cbar_label=r"波阻抗 (×$10^6$ kg/(m$^2\cdot$s))",
         holes_xy=holes_all, scale=1e6,
     )
-    plot_slice_grid(
+    plot_field_residual_grid(
+        ds_all.ucs_true,
         [
-            (ds_all.ucs_true, "(a) 强度真值", holes_all),
-            (res_all.S_M, "(b) 仅钻孔插值", holes_all),
-            (res_all.S_Z, "(c) 仅波阻抗标定", holes_all),
-            (res_all.S_F, "(d) 不确定度加权融合", holes_all),
+            (res_all.S_M, "(b) 仅钻孔插值", "(e) 仅钻孔 $-$ 真值"),
+            (res_all.S_Z, "(c) 仅波阻抗标定", "(f) 仅波阻抗 $-$ 真值"),
+            (res_all.S_F, "(d) 外漂移克里金融合", "(g) 融合 $-$ 真值"),
         ],
         ds_all.gx, ds_all.gy, zi,
         os.path.join(args.outdir, "fusion_advantage.png"),
-        cbar_label="UCS (MPa)", vmin=vmin, vmax=vmax, ncols=4,
+        vmin=vmin, vmax=vmax, holes_xy=holes_all,
+        true_title="(a) 强度真值",
         suptitle=f"融合优势对比（{elev:.0f} m 标高，{args.n_holes} 口钻孔，50×80 m）",
     )
     plot_along_holes(
@@ -294,6 +394,9 @@ def main() -> None:
     )
     plot_mwd_weight(
         ds_all, res_all, zi, os.path.join(args.outdir, "mwd_fusion_weight.png"),
+    )
+    plot_hole_layout(
+        ds_all, zi, os.path.join(args.outdir, "hole_layout.png"),
     )
 
     m_all = {
@@ -412,7 +515,7 @@ def main() -> None:
         vmin=0.0,
         vmax=float(np.percentile(np.sqrt(res_all.var_M[:, :, zi]), 98)),
         cmap="magma", ncols=4,
-        suptitle="钻孔稀疏处克里金方差大，融合自动改信连续波阻抗场",
+        suptitle="钻孔稀疏处克里金方差大，协克里金改信连续波阻抗场",
     )
 
     with open(os.path.join(args.outdir, "full_hole_metrics.json"), "w",

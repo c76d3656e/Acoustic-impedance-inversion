@@ -50,8 +50,10 @@ export default function WellPanel() {
       strengthRef.current.width = 150;
       strengthRef.current.height = 220;
       drawLog(strengthRef.current, well, [
-        { label: t.curveUCSpred, color: "#4fc3f7", get: (s) => s.ucs_pred },
         { label: t.curveUCStrue, color: "#ffb74d", get: (s) => s.ucs_true },
+        { label: t.curveUCSpred, color: "#4fc3f7", get: (s) => s.ucs_mwd ?? s.ucs_pred },
+        { label: t.curveUCSseis, color: "#ff8a65", get: (s) => s.ucs_seis ?? s.ucs_pred },
+        { label: t.curveUCSfused, color: "#81c784", get: (s) => s.ucs_fused ?? s.ucs_pred },
       ], zmin, zmax);
     }
     if (drillRef.current) {
@@ -89,8 +91,10 @@ export default function WellPanel() {
           <div className="log-title">{t.wellStrength}</div>
           <canvas ref={strengthRef} />
           <div className="legend">
-            <span style={{ color: "#4fc3f7" }}>■ {t.curveUCSpred}</span>
             <span style={{ color: "#ffb74d" }}>■ {t.curveUCStrue}</span>
+            <span style={{ color: "#4fc3f7" }}>■ {t.curveUCSpred}</span>
+            <span style={{ color: "#ff8a65" }}>■ {t.curveUCSseis}</span>
+            <span style={{ color: "#81c784" }}>■ {t.curveUCSfused}</span>
           </div>
         </div>
         <div className="log-col">

@@ -44,66 +44,15 @@ except Exception as e:
 
 # Nature-style publication defaults.
 plt.rcParams.update({
-    'figure.dpi': 110, 'savefig.dpi': 220, 'font.size': 11,
+    'figure.dpi': 110, 'savefig.dpi': 150, 'font.size': 11,
     'axes.linewidth': 0.8, 'axes.titlesize': 12, 'axes.labelsize': 11,
     'xtick.direction': 'out', 'ytick.direction': 'out',
     'xtick.major.width': 0.8, 'ytick.major.width': 0.8,
     'axes.spines.top': False, 'axes.spines.right': False,
-    'figure.facecolor': 'white', 'savefig.bbox': 'tight',
+    'figure.facecolor': 'white',
     'font.sans-serif': [_name, 'DejaVu Sans'], 'axes.unicode_minus': False,
 })
 _name
-`;
-
-const PLOT_PY = `
-import json, base64, io
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
-
-p = json.loads(PAYLOAD)
-w, h = p['w'], p['h']
-Z = np.array(p['values'], dtype=float).reshape(h, w) / p['scale']
-
-stops = sorted(p['cmapStops'], key=lambda s: s['pos'])
-pairs = [(s['pos'], tuple(c / 255.0 for c in s['color'])) for s in stops]
-if p['reverse']:
-    pairs = sorted([(1 - pos, col) for pos, col in pairs], key=lambda t: t[0])
-lo, hi = pairs[0][0], pairs[-1][0]
-if hi <= lo:
-    hi = lo + 1.0
-pairs = [(min(1.0, max(0.0, (pos - lo) / (hi - lo))), col) for pos, col in pairs]
-# from_list requires the first/last mapping points to be exactly 0 and 1.
-pairs[0] = (0.0, pairs[0][1])
-pairs[-1] = (1.0, pairs[-1][1])
-cmap = LinearSegmentedColormap.from_list('custom', pairs)
-
-ext = p['extent']
-fig, ax = plt.subplots(figsize=(6.4, 4.8))
-im = ax.imshow(Z, origin='upper', extent=[ext[0], ext[1], ext[2], ext[3]],
-               cmap=cmap, aspect='auto', interpolation='bilinear')
-try:
-    xs = np.linspace(ext[0], ext[1], w)
-    ys = np.linspace(ext[3], ext[2], h)
-    ax.contour(xs, ys, Z, colors='k', linewidths=0.4, linestyles='--', alpha=0.45)
-except Exception as e:
-    print('contour skipped:', e)
-
-for bx, by in p['boreholes']:
-    ax.scatter([bx], [by], s=90, facecolors='none', edgecolors='k', linewidths=1.2)
-    ax.scatter([bx], [by], s=10, c='k')
-
-cb = fig.colorbar(im, ax=ax)
-cb.set_label(p['unit'])
-ax.set_xlabel(p['horizLabel'])
-ax.set_ylabel(p['vertLabel'])
-ax.set_title(p['title'])
-fig.tight_layout()
-
-buf = io.BytesIO()
-fig.savefig(buf, format='png', dpi=220)
-plt.close(fig)
-base64.b64encode(buf.getvalue()).decode()
 `;
 
 async function ensurePyodide(onStatus?: (s: string) => void): Promise<any> {
@@ -145,13 +94,72 @@ export interface FigureParams {
   boreholes: Array<[number, number]>;
 }
 
+export interface ComparePanel {
+  title: string;
+  residualTitle: string;
+  values: Float32Array;
+}
+
+export interface CompareParams {
+  w: number;
+  h: number;
+  extent: [number, number, number, number];
+  horizLabel: string;
+  vertLabel: string;
+  title: string;
+  vmin: number;
+  vmax: number;
+  scale: number;
+  panels: ComparePanel[]; // [truth, mwd, seis, fused]
+  boreholes: Array<[number, number]>;
+}
+
+export interface ProfileWell {
+  title: string;
+  z: number[];
+  ucs_true: number[];
+  ucs_mwd: number[];
+  ucs_seis: number[];
+  ucs_fused: number[];
+}
+
+export interface ProfileParams {
+  title: string;
+  wells: ProfileWell[];
+}
+
+let figuresPromise: Promise<void> | null = null;
+
+async function ensureFigures(py: any, onStatus?: (s: string) => void): Promise<void> {
+  if (figuresPromise) return figuresPromise;
+  figuresPromise = (async () => {
+    onStatus?.("加载出版图模板…");
+    const resp = await fetch(`${base}py/figures.py`);
+    if (!resp.ok) throw new Error("加载出版图脚本失败");
+    await py.runPythonAsync(await resp.text());
+  })();
+  return figuresPromise;
+}
+
+async function runNamed(
+  fn: "render_slice" | "render_compare" | "render_profile",
+  payload: unknown,
+  onStatus?: (s: string) => void,
+): Promise<string> {
+  const py = await ensurePyodide(onStatus);
+  await ensureFigures(py, onStatus);
+  onStatus?.("本地渲染图片…");
+  py.globals.set("PAYLOAD", JSON.stringify(payload));
+  const b64: string = await py.runPythonAsync(`${fn}(PAYLOAD)`);
+  py.globals.delete("PAYLOAD");
+  return `data:image/png;base64,${b64}`;
+}
+
 export async function renderFigure(
   params: FigureParams,
   onStatus?: (s: string) => void,
 ): Promise<string> {
-  const py = await ensurePyodide(onStatus);
-  onStatus?.("本地渲染图片…");
-  const payload = JSON.stringify({
+  return runNamed("render_slice", {
     values: Array.from(params.values),
     w: params.w,
     h: params.h,
@@ -164,9 +172,35 @@ export async function renderFigure(
     reverse: params.reverse,
     cmapStops: params.colormap.stops,
     boreholes: params.boreholes,
-  });
-  py.globals.set("PAYLOAD", payload);
-  const b64: string = await py.runPythonAsync(PLOT_PY);
-  py.globals.delete("PAYLOAD");
-  return `data:image/png;base64,${b64}`;
+  }, onStatus);
+}
+
+export async function renderCompareFigure(
+  params: CompareParams,
+  onStatus?: (s: string) => void,
+): Promise<string> {
+  return runNamed("render_compare", {
+    w: params.w,
+    h: params.h,
+    extent: params.extent,
+    horizLabel: params.horizLabel,
+    vertLabel: params.vertLabel,
+    title: params.title,
+    vmin: params.vmin,
+    vmax: params.vmax,
+    scale: params.scale,
+    panels: params.panels.map((m) => ({
+      title: m.title,
+      residualTitle: m.residualTitle,
+      values: Array.from(m.values),
+    })),
+    boreholes: params.boreholes,
+  }, onStatus);
+}
+
+export async function renderProfileFigure(
+  params: ProfileParams,
+  onStatus?: (s: string) => void,
+): Promise<string> {
+  return runNamed("render_profile", params, onStatus);
 }

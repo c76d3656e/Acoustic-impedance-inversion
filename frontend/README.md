@@ -8,8 +8,18 @@ functions).
 
 ## Features
 
-- **数据场切换**: acoustic impedance inversion, MWD strength, fused strength,
-  fusion uncertainty, ground truth.
+- **数据场切换**: 外漂移克里金融合、仅钻孔克里金、波阻抗标定 UCS、真值、波阻抗反演、融合不确定性、钻孔权重。
+- **融合对比**: 当前切片上并排真值 / MWD / 地震 UCS / 融合，下行预测−真值热力图（与文档 `fusion_advantage` 同一套图）。
+- **X / Y / Z 切片** with a draggable slice-position slider (live update) and a
+  hover value readout.
+- **三维视图 (WebGL2)**: three intersecting textured slice planes + strength-
+  colored borehole lines; orbit/zoom.
+- **钻孔（多井）**: well selector with along-hole logs (V, N, M, F) and strength
+  curves (true / MWD / seismic / fused UCS); drill-hole markers on slices.
+- **配色方案**: presets (Viridis/Magma/Plasma/Turbo/Jet) + a **custom strength
+  colormap editor** (color stops) that affects both the live view and the
+  exported figure.
+- **出图（本地 matplotlib）**: 当前切片、融合对比 2×4、沿孔剖面，均可在浏览器内生成中文出版图并下载 PNG。
 - **X / Y / Z 切片** with a draggable slice-position slider (live update) and a
   hover value readout.
 - **三维视图 (WebGL2)**: three intersecting textured slice planes + strength-

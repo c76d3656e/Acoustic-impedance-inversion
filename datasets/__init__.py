@@ -15,6 +15,7 @@ from .synthetic_mine import (
     MineDataset,
     unique_hole_xy_indices,
     subset_holes,
+    plum_blossom_hole_indices,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "MineDataset",
     "unique_hole_xy_indices",
     "subset_holes",
+    "plum_blossom_hole_indices",
 ]

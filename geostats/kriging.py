@@ -27,6 +27,8 @@ def ordinary_kriging_3d(
     gz: np.ndarray,
     variogram_model: str = "spherical",
     nlags: int = 8,
+    variogram_parameters: dict | None = None,
+    anisotropy_scaling_z: float = 1.0,
 ):
     """Ordinary 3-D kriging.
 
@@ -36,6 +38,11 @@ def ordinary_kriging_3d(
         ``(n, 3)`` array of ``(x, y, z)`` sample locations.
     values:
         ``(n,)`` sample values.
+    variogram_parameters:
+        Optional ``{sill, range, nugget}``.  When omitted, PyKrige auto-fits
+        (and falls back to a domain-scale spherical model if that fails).
+    anisotropy_scaling_z:
+        PyKrige z-axis stretch (``>1`` ⇒ longer vertical correlation).
 
     Returns
     -------
@@ -50,6 +57,8 @@ def ordinary_kriging_3d(
     ok = _ordinary_kriging_3d_fit(
         pts, val, variogram_model=variogram_model, nlags=nlags,
         gx=gx, gy=gy, gz=gz,
+        variogram_parameters=variogram_parameters,
+        anisotropy_scaling_z=anisotropy_scaling_z,
     )
     k, ss = ok.execute("grid", gx, gy, gz)  # shape (nz, ny, nx)
     mean = np.asarray(k).transpose(2, 1, 0)
@@ -57,7 +66,10 @@ def ordinary_kriging_3d(
     return mean, var
 
 
-def _ordinary_kriging_3d_fit(pts, val, variogram_model, nlags, gx, gy, gz):
+def _ordinary_kriging_3d_fit(
+    pts, val, variogram_model, nlags, gx, gy, gz,
+    variogram_parameters=None, anisotropy_scaling_z=1.0,
+):
     """Fit 3-D OK; fall back to a domain-scale spherical model if auto-fit fails.
 
     A single vertical hole has no lateral lags, so PyKrige cannot estimate a
@@ -66,10 +78,18 @@ def _ordinary_kriging_3d_fit(pts, val, variogram_model, nlags, gx, gy, gz):
     interpolator then reverts to the (depth) mean away from the hole, which is
     the correct sparse-well behaviour.
     """
+    kw = {"anisotropy_scaling_z": float(anisotropy_scaling_z)}
+    if variogram_parameters is not None:
+        return OrdinaryKriging3D(
+            pts[:, 0], pts[:, 1], pts[:, 2], val,
+            variogram_model=variogram_model,
+            variogram_parameters=dict(variogram_parameters),
+            **kw,
+        )
     try:
         return OrdinaryKriging3D(
             pts[:, 0], pts[:, 1], pts[:, 2], val,
-            variogram_model=variogram_model, nlags=nlags,
+            variogram_model=variogram_model, nlags=nlags, **kw,
         )
     except Exception:
         sill = float(np.var(val)) + 1e-6
@@ -83,6 +103,7 @@ def _ordinary_kriging_3d_fit(pts, val, variogram_model, nlags, gx, gy, gz):
             variogram_parameters={
                 "sill": sill, "range": vrange, "nugget": 0.1 * sill,
             },
+            **kw,
         )
 
 
@@ -96,11 +117,19 @@ def regression_kriging_3d(
     trend_on_grid: np.ndarray,
     variogram_model: str = "spherical",
     nlags: int = 8,
+    residual_range: float | None = None,
+    anisotropy_scaling_z: float = 1.0,
+    nugget_frac: float = 0.05,
 ):
     """Regression kriging: linear trend on covariates + OK of residuals.
 
     ``trend_at_points`` is ``(n, p)`` covariates at the sample locations;
     ``trend_on_grid`` is ``(nx, ny, nz, p)`` covariates on the grid.
+
+    ``residual_range`` (metres) optionally replaces auto-fit with a spherical
+    model whose range is the hole-to-hole scale.  Auto-fit on a compact blast
+    block otherwise stretches to the domain diagonal and oversmooths the
+    mechanical residual that seismic cannot see.
 
     Returns ``(mean, variance)`` as ``(nx, ny, nz)``.  The variance is the
     residual kriging variance (trend uncertainty is neglected).
@@ -116,8 +145,19 @@ def regression_kriging_3d(
     reg = LinearRegression().fit(tp, val)
     residual = val - reg.predict(tp)
 
+    vparams = None
+    if residual_range is not None:
+        sill = float(np.var(residual)) + 1e-6
+        vparams = {
+            "sill": sill,
+            "range": float(residual_range),
+            "nugget": float(nugget_frac) * sill,
+        }
     res_mean, res_var = ordinary_kriging_3d(
-        pts, residual, gx, gy, gz, variogram_model=variogram_model, nlags=nlags
+        pts, residual, gx, gy, gz,
+        variogram_model=variogram_model, nlags=nlags,
+        variogram_parameters=vparams,
+        anisotropy_scaling_z=anisotropy_scaling_z,
     )
     trend_grid = reg.predict(tg.reshape(-1, tg.shape[-1])).reshape(nx, ny, nz)
     return trend_grid + res_mean, res_var

@@ -50,3 +50,17 @@ def test_regression_kriging_shapes():
     mean, var = regression_kriging_3d(pts, vals, tp, gx, gy, gz, zz, nlags=3)
     assert mean.shape == (3, 3, 3)
     assert var.shape == (3, 3, 3)
+
+
+def test_regression_kriging_specified_residual_range():
+    pts, vals = _points()
+    gx, gy, gz = make_grid(0, 2, 3, 0, 2, 3, 0, 2, 3)
+    tp = pts[:, [2]]
+    zz = np.broadcast_to(gz[None, None, :, None], (3, 3, 3, 1))
+    mean, var = regression_kriging_3d(
+        pts, vals, tp, gx, gy, gz, zz,
+        residual_range=1.5, anisotropy_scaling_z=2.0,
+    )
+    assert mean.shape == (3, 3, 3)
+    assert np.all(np.isfinite(mean))
+    assert np.all(var > -1e-6)

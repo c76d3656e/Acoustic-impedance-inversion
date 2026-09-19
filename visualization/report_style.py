@@ -159,3 +159,96 @@ def plot_slice_grid(
     fig.savefig(outfile, dpi=150)
     plt.close(fig)
     return outfile
+
+
+def plot_field_residual_grid(
+    true_field: np.ndarray,
+    methods: list,
+    gx: np.ndarray,
+    gy: np.ndarray,
+    z_index: int,
+    outfile: str,
+    vmin: float,
+    vmax: float,
+    holes_xy: np.ndarray | None = None,
+    true_title: str = "(a) 强度真值",
+    field_cbar: str = "UCS (MPa)",
+    residual_cbar: str = r"预测 $-$ 真值 (MPa)",
+    suptitle: str = "",
+    levels: int = 20,
+):
+    """Two-row comparison: fields on top, ``pred − truth`` heatmaps below.
+
+    ``methods`` is ``[(field, field_title, residual_title), ...]``.  The residual
+    row shares one diverging scale so a paler map means a smaller gap.
+    """
+    configure_cjk_font()
+    n_m = len(methods)
+    if n_m < 1:
+        raise ValueError("methods must be non-empty")
+    n_cols = n_m + 1
+    true = np.asarray(true_field, dtype=float)
+    fields = [np.asarray(m[0], dtype=float) for m in methods]
+    residuals = [fld - true for fld in fields]
+    slice_abs = np.concatenate(
+        [np.abs(r[:, :, z_index]).ravel() for r in residuals]
+    )
+    err_abs = float(np.percentile(slice_abs, 98))
+    if not np.isfinite(err_abs) or err_abs < 1e-6:
+        err_abs = 1.0
+
+    xx, yy = np.meshgrid(gx, gy, indexing="ij")
+    lev = np.linspace(float(vmin), float(vmax), int(levels))
+    err_lev = np.linspace(-err_abs, err_abs, int(levels) + 1)
+    fig, axes = plt.subplots(
+        2, n_cols,
+        figsize=(3.4 * n_cols + 1.2, 6.6),
+        constrained_layout=True,
+    )
+    titles_top = [true_title] + [m[1] for m in methods]
+    vols_top = [true] + fields
+    cf0 = None
+    for c, (vol, title) in enumerate(zip(vols_top, titles_top)):
+        ax = axes[0, c]
+        data = vol[:, :, z_index]
+        cf0 = ax.contourf(xx, yy, data, levels=lev, cmap="viridis", extend="both")
+        ax.contour(xx, yy, data, levels=lev, colors="k", linewidths=0.3,
+                   linestyles="--", alpha=0.4)
+        _draw_holes(ax, holes_xy, s_outer=55, s_inner=8)
+        _style_slice_ax(ax, gx, gy, title)
+        if c != 0:
+            ax.set_ylabel("")
+        ax.set_xlabel("")
+
+    axes[1, 0].axis("off")
+    axes[1, 0].text(
+        0.5, 0.55,
+        "下行：预测 $-$ 真值\n红＝估计偏高\n蓝＝估计偏低\n越浅越好",
+        transform=axes[1, 0].transAxes, ha="center", va="center",
+        fontsize=11, linespacing=1.6,
+    )
+    cf1 = None
+    for c, (res, method) in enumerate(zip(residuals, methods), start=1):
+        ax = axes[1, c]
+        data = res[:, :, z_index]
+        cf1 = ax.contourf(
+            xx, yy, data, levels=err_lev, cmap="RdBu_r",
+            extend="both", vmin=-err_abs, vmax=err_abs,
+        )
+        ax.contour(xx, yy, data, levels=[0.0], colors="k", linewidths=0.6, alpha=0.45)
+        _draw_holes(ax, holes_xy, s_outer=55, s_inner=8)
+        rmse = float(np.sqrt(np.mean(data ** 2)))
+        _style_slice_ax(ax, gx, gy, f"{method[2]}\nRMSE {rmse:.1f} MPa")
+        if c != 1:
+            ax.set_ylabel("")
+    if cf0 is not None:
+        cbar0 = fig.colorbar(cf0, ax=axes[0, :].tolist(), shrink=0.9, pad=0.02)
+        cbar0.set_label(field_cbar)
+    if cf1 is not None:
+        cbar1 = fig.colorbar(cf1, ax=axes[1, 1:].tolist(), shrink=0.9, pad=0.02)
+        cbar1.set_label(residual_cbar)
+    if suptitle:
+        fig.suptitle(suptitle, fontsize=13)
+    fig.savefig(outfile, dpi=150)
+    plt.close(fig)
+    return outfile

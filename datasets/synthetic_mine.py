@@ -15,6 +15,8 @@ Design principles
   borehole branch looks redundant on maps.
 * MWD parameters are produced from UCS through monotonic physical relations plus
   realistic scatter, so ``MWD -> UCS`` is learnable but noisy.
+* Drill holes follow an approximate triangular / 梅花 lattice so the block is
+  sampled uniformly rather than clustered.
 * Everything is derived from a fixed seed and hidden ground truth, enabling
   quantitative evaluation of every branch and of the fusion.
 """
@@ -54,6 +56,162 @@ def _normalize(a: np.ndarray) -> np.ndarray:
     return a / (a.max() + 1e-12)
 
 
+def _farthest_point_order(
+    pts: list[tuple[int, int]],
+    gx: np.ndarray,
+    gy: np.ndarray,
+    n: int,
+    start_xy: tuple[float, float],
+) -> list[tuple[int, int]]:
+    """Select ``n`` sites by farthest-point sampling, starting nearest ``start_xy``.
+
+    Prefixes of the returned list stay spread (uniform nested sampling), which
+    the 1→N borehole experiment needs.
+    """
+    if not pts or n < 1:
+        return []
+    n = min(int(n), len(pts))
+    xy = np.array([(float(gx[i]), float(gy[j])) for i, j in pts], dtype=float)
+    remaining = set(range(len(pts)))
+    d0 = (xy[:, 0] - start_xy[0]) ** 2 + (xy[:, 1] - start_xy[1]) ** 2
+    first = int(np.argmin(d0))
+    order = [first]
+    remaining.remove(first)
+    while remaining and len(order) < n:
+        chosen = xy[order]
+        best_i = next(iter(remaining))
+        best_d = -1.0
+        for i in remaining:
+            d = float(np.min(
+                (chosen[:, 0] - xy[i, 0]) ** 2 + (chosen[:, 1] - xy[i, 1]) ** 2
+            ))
+            if d > best_d:
+                best_d = d
+                best_i = i
+        order.append(best_i)
+        remaining.remove(best_i)
+    return [pts[i] for i in order]
+
+
+def plum_blossom_hole_indices(
+    gx: np.ndarray,
+    gy: np.ndarray,
+    n_holes: int,
+) -> list[tuple[int, int]]:
+    """Approximate triangular / 梅花 blast-hole lattice, snapped to the grid.
+
+    Adjacent rows are shifted by half a hole spacing (equilateral-triangle
+    packing, not a rectangular grid).  The lattice is inset from the free face
+    by about half a hole-spacing so wells sit *inside* the block, not on the
+    edges.  If snapping collapses a few sites, the remainder is filled by
+    farthest-point sampling inside that inset.  The returned order is itself
+    farthest-point from the block centre, so every nested prefix is still spread.
+    """
+    if n_holes < 1:
+        raise ValueError("n_holes must be >= 1")
+    nx, ny = len(gx), len(gy)
+    if nx < 3 or ny < 3:
+        raise ValueError("grid too small for interior holes")
+    Lx = float(gx[-1] - gx[0])
+    Ly = float(gy[-1] - gy[0])
+    dxg = abs(float(gx[1] - gx[0])) if nx > 1 else 1.0
+    dyg = abs(float(gy[1] - gy[0])) if ny > 1 else 1.0
+    a0 = float(np.sqrt((max(Lx, 1e-6) * max(Ly, 1e-6) / float(n_holes)) * 2.0 / np.sqrt(3.0)))
+    # ~½ hole-spacing off each free face; cap so the interior stays usable.
+    mx = min(max(0.50 * a0, 2.0 * dxg), 0.22 * Lx)
+    my = min(max(0.50 * a0, 2.0 * dyg), 0.22 * Ly)
+    x0 = float(gx[0]) + mx
+    x1 = float(gx[-1]) - mx
+    y0 = float(gy[0]) + my
+    y1 = float(gy[-1]) - my
+    if x1 <= x0 or y1 <= y0:
+        raise ValueError("grid too small for interior holes")
+    lx = max(x1 - x0, 1e-6)
+    ly = max(y1 - y0, 1e-6)
+    cx, cy = 0.5 * (x0 + x1), 0.5 * (y0 + y1)
+
+    ix_lo = int(np.clip(np.argmin(np.abs(gx - x0)), 1, nx - 2))
+    ix_hi = int(np.clip(np.argmin(np.abs(gx - x1)), 1, nx - 2))
+    iy_lo = int(np.clip(np.argmin(np.abs(gy - y0)), 1, ny - 2))
+    iy_hi = int(np.clip(np.argmin(np.abs(gy - y1)), 1, ny - 2))
+    if ix_hi < ix_lo:
+        ix_lo, ix_hi = ix_hi, ix_lo
+    if iy_hi < iy_lo:
+        iy_lo, iy_hi = iy_hi, iy_lo
+
+    def _snap(x: float, y: float) -> tuple[int, int]:
+        ix = int(np.clip(np.argmin(np.abs(gx - x)), ix_lo, ix_hi))
+        iy = int(np.clip(np.argmin(np.abs(gy - y)), iy_lo, iy_hi))
+        return ix, iy
+
+    if n_holes == 1:
+        return [_snap(cx, cy)]
+
+    # Hexagonal packing inside the inset: area per hole ≈ a² √3 / 2.
+    a = float(np.sqrt((lx * ly / float(n_holes)) * 2.0 / np.sqrt(3.0)))
+    a = max(a, 1e-6)
+
+    pts: list[tuple[int, int]] = []
+    seen: set[tuple[int, int]] = set()
+
+    def _add(x: float, y: float) -> None:
+        key = _snap(x, y)
+        if key not in seen:
+            seen.add(key)
+            pts.append(key)
+
+    if ly >= lx:
+        # Rows along X, holes along the long Y side; odd rows shifted by a/2.
+        dx = a * np.sqrt(3.0) / 2.0
+        n_row = max(2, int(np.round(lx / max(dx, 1e-6))))
+        n_col = max(2, int(np.round(ly / max(a, 1e-6))))
+        xs = np.linspace(x0, x1, n_row)
+        even_ys = np.linspace(y0, y1, n_col)
+        half = 0.5 * (even_ys[1] - even_ys[0]) if n_col > 1 else 0.0
+        for r, x in enumerate(xs):
+            if r % 2 == 0 or n_col == 1:
+                ys = even_ys
+            else:
+                ys = even_ys[:-1] + half
+            for y in np.atleast_1d(ys):
+                _add(float(x), float(y))
+    else:
+        dy = a * np.sqrt(3.0) / 2.0
+        n_col = max(2, int(np.round(ly / max(dy, 1e-6))))
+        n_row = max(2, int(np.round(lx / max(a, 1e-6))))
+        ys = np.linspace(y0, y1, n_col)
+        even_xs = np.linspace(x0, x1, n_row)
+        half = 0.5 * (even_xs[1] - even_xs[0]) if n_row > 1 else 0.0
+        for c, y in enumerate(ys):
+            if c % 2 == 0 or n_row == 1:
+                xs = even_xs
+            else:
+                xs = even_xs[:-1] + half
+            for x in np.atleast_1d(xs):
+                _add(float(x), float(y))
+
+    if len(pts) < n_holes:
+        pool = [
+            (i, j)
+            for i in range(ix_lo, ix_hi + 1)
+            for j in range(iy_lo, iy_hi + 1)
+            if (i, j) not in seen
+        ]
+        while len(pts) < n_holes and pool:
+            def _min_d2(p, placed=pts):
+                return min(
+                    (float(gx[p[0]]) - float(gx[q[0]])) ** 2
+                    + (float(gy[p[1]]) - float(gy[q[1]])) ** 2
+                    for q in placed
+                )
+            best = max(pool, key=_min_d2)
+            pts.append(best)
+            pool.remove(best)
+            seen.add(best)
+
+    return _farthest_point_order(pts, gx, gy, n=n_holes, start_xy=(cx, cy))
+
+
 def generate_mine(
     shape: tuple[int, int, int] = (25, 40, 40),
     extent=((0.0, 50.0), (0.0, 80.0), (0.0, -40.0)),
@@ -77,9 +235,11 @@ def generate_mine(
     bench = np.floor(depth_frac * 10.0)
     bench_offset = rng.uniform(-0.09, 0.09, size=11)[bench.astype(int)]
 
-    fine = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(1.5, 1.5, 2.0)))
-    med = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(4.0, 4.0, 5.0)))
-    coarse = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(8.0, 8.0, 8.0)))
+    # Fine scale is shorter than the ~18 m hole spacing so kriging between
+    # 梅花 holes stays visibly smoother than the truth.
+    fine = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(1.1, 1.1, 1.6)))
+    med = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(3.0, 3.0, 4.0)))
+    coarse = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(6.5, 6.5, 7.0)))
 
     xx, yy, zz = np.meshgrid(gx, gy, gz, indexing="ij")
 
@@ -87,8 +247,9 @@ def generate_mine(
         plane = ax * xx / x1 + ay * yy / y1 + az * (-zz) / z_span
         return np.exp(-((plane - c) ** 2) / (2.0 * w**2))
 
-    fr1 = _fracture(0.6, 0.5, -0.7, 0.15, 0.05)   # dipping low-strength zone
-    fr2 = _fracture(-0.4, 0.7, 0.5, 0.55, 0.06)   # second, crossing zone
+    fr1 = _fracture(0.6, 0.5, -0.7, 0.15, 0.045)
+    fr2 = _fracture(-0.4, 0.7, 0.5, 0.55, 0.05)
+    fr3 = _fracture(0.2, -0.8, 0.3, 0.72, 0.04)
 
     def _blob(fx, fy, fz, rx, ry, rz):
         return np.exp(
@@ -97,54 +258,40 @@ def generate_mine(
               + ((zz + fz * z_span) / rz) ** 2)
         )
 
-    hi1 = _blob(0.72, 0.38, 0.45, 0.16 * x1, 0.14 * y1, 0.15 * z_span)  # hard ore
-    hi2 = _blob(0.24, 0.75, 0.75, 0.14 * x1, 0.12 * y1, 0.13 * z_span)
-    lo1 = _blob(0.50, 0.55, 0.30, 0.18 * x1, 0.16 * y1, 0.13 * z_span)  # soft lens
+    hi1 = _blob(0.72, 0.38, 0.45, 0.14 * x1, 0.12 * y1, 0.14 * z_span)
+    hi2 = _blob(0.22, 0.78, 0.72, 0.12 * x1, 0.10 * y1, 0.12 * z_span)
+    lo1 = _blob(0.50, 0.58, 0.30, 0.15 * x1, 0.13 * y1, 0.12 * z_span)
+    lo2 = _blob(0.82, 0.82, 0.55, 0.11 * x1, 0.10 * y1, 0.11 * z_span)
 
     competence = (
-        0.10
-        + 0.35 * depth_frac
+        0.06
+        + 0.20 * depth_frac
         + bench_offset
-        + 0.30 * med + 0.16 * fine + 0.10 * coarse
-        + 0.32 * hi1 + 0.26 * hi2
-        - 0.48 * fr1 - 0.42 * fr2
-        - 0.32 * lo1
+        + 0.18 * med + 0.26 * fine + 0.07 * coarse
+        + 0.55 * hi1 + 0.42 * hi2
+        - 0.72 * fr1 - 0.62 * fr2 - 0.48 * fr3
+        - 0.50 * lo1 - 0.38 * lo2
     )
-    # widen the distribution for stronger contrast, then clip to a valid range
-    competence = np.clip((competence - 0.5) * 1.4 + 0.5, 0.02, 1.0)
+    competence = np.clip((competence - 0.5) * 2.0 + 0.5, 0.02, 1.0)
 
-    # Mechanical residual that acoustics cannot see: near-surface weathering
-    # plus an alteration halo.  Core / MWD measure the weakened UCS; AI does not.
-    weather = (1.0 - depth_frac) ** 1.5
-    alter = _blob(0.36, 0.40, 0.38, 0.18 * x1, 0.14 * y1, 0.18 * z_span)
-    mech = np.clip(0.50 * weather + 0.70 * alter, 0.0, 1.0)
-    ucs_latent = np.clip(0.78 * competence - 0.24 * mech, 0.02, 1.0)
+    # Mechanical residual acoustics cannot see (weathering + alteration halo).
+    # Keep this strong so S_Z / S_M / S_true disagree on maps, not only along holes.
+    weather = (1.0 - depth_frac) ** 1.25
+    alter = _blob(0.34, 0.30, 0.38, 0.22 * x1, 0.18 * y1, 0.22 * z_span)
+    mech = np.clip(0.48 * weather + 1.05 * alter, 0.0, 1.0)
+    ucs_latent = np.clip(0.52 * competence - 0.50 * mech, 0.02, 1.0)
     ucs_true = UCS_MIN + UCS_RANGE * ucs_latent
 
-    ai_tex = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(3.0, 3.0, 4.0)))
-    # Independent acoustic texture — AI is related to competence, not a
-    # rescaled copy of UCS (the previous 0.72/0.18/0.10 mix yielded corr~0.98).
-    ai_latent = np.clip(0.48 * competence + 0.52 * ai_tex, 0.0, 1.0)
+    ai_tex = _normalize(gaussian_filter(rng.standard_normal(shape), sigma=(1.8, 1.8, 2.6)))
+    ai_latent = np.clip(0.40 * competence + 0.60 * ai_tex, 0.0, 1.0)
     ai_true = AI_MIN + AI_RANGE * ai_latent
 
-    # --- drill holes -------------------------------------------------------
-    # Force one hole through the alteration halo and one through the hard body
-    # so along-hole MWD corrections are visible; remaining holes are random.
-    forced_xy = [(0.36 * x1, 0.40 * y1), (0.72 * x1, 0.38 * y1)]
-    forced = [
-        (int(np.argmin(np.abs(gx - cx))), int(np.argmin(np.abs(gy - cy))))
-        for cx, cy in forced_xy
-    ]
-    forced = [(i, j) for i, j in forced if 1 <= i < nx - 1 and 1 <= j < ny - 1][:n_holes]
-    n_random = max(0, n_holes - len(forced))
-    taken = set(forced)
-    pool = [(i, j) for i in range(1, nx - 1) for j in range(1, ny - 1) if (i, j) not in taken]
-    if n_random > len(pool):
-        raise ValueError("n_holes too large for the grid")
-    pick = rng.choice(len(pool), size=n_random, replace=False) if n_random else []
-    extra = [pool[k] for k in np.atleast_1d(pick)] if n_random else []
-    hi = np.array([p[0] for p in (forced + extra)], dtype=int)
-    hj = np.array([p[1] for p in (forced + extra)], dtype=int)
+    # --- drill holes: 梅花 / triangular lattice (uniform, not clustered) ---
+    alter_xy = (0.34 * x1, 0.30 * y1)
+    hard_xy = (0.72 * x1, 0.38 * y1)
+    lattice = plum_blossom_hole_indices(gx, gy, n_holes)
+    hi = np.array([p[0] for p in lattice], dtype=int)
+    hj = np.array([p[1] for p in lattice], dtype=int)
     depth_idx = np.arange(0, nz, hole_sample_step)
 
     ix, iy, iz = [], [], []
@@ -177,6 +324,9 @@ def generate_mine(
         meta={
             "shape": shape, "extent": extent, "n_holes": n_holes, "seed": seed,
             "corr_ai_ucs": float(np.corrcoef(ai_true.ravel(), ucs_true.ravel())[0, 1]),
+            "alter_xy": alter_xy,
+            "hard_xy": hard_xy,
+            "hole_layout": "plum_blossom",
         },
     )
 

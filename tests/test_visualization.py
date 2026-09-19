@@ -13,9 +13,10 @@ def test_fusion_pipeline_shapes():
     assert isinstance(res, FusionResult)
     for arr in (res.ai_inv, res.S_M, res.var_M, res.S_Z, res.var_Z, res.S_F, res.var_F):
         assert arr.shape == ds.ucs_true.shape
-    # Fused variance never exceeds either source.
-    assert np.all(res.var_F <= res.var_M + 1e-6)
-    assert np.all(res.var_F <= res.var_Z + 1e-6)
+    # Residual-kriging variance is the leftover after the seismic drift, so
+    # it need not sit below the well-only kriging variance at every voxel.
+    assert np.all(np.isfinite(res.var_F))
+    assert np.all(res.var_F >= -1e-6)
 
 
 def test_report_slice_writes_png(tmp_path):
@@ -47,6 +48,30 @@ def test_slice_grid_writes_png(tmp_path):
         vmax=float(ds.ucs_true.max()),
         ncols=2,
         suptitle="grid test",
+    )
+    assert os.path.exists(path)
+    assert os.path.getsize(path) > 1000
+
+
+def test_field_residual_grid_writes_png(tmp_path):
+    ds = generate_mine(shape=(12, 10, 24), n_holes=4, seed=1)
+    holes = np.unique(ds.hole_xyz[:, :2], axis=0)
+    out = str(tmp_path / "residual.png")
+    from visualization import plot_field_residual_grid
+
+    fake_mwd = ds.ucs_true + 5.0
+    fake_seis = ds.ucs_true - 8.0
+    path = plot_field_residual_grid(
+        ds.ucs_true,
+        [
+            (fake_mwd, "(b) MWD", "(e) MWD − 真值"),
+            (fake_seis, "(c) 地震", "(f) 地震 − 真值"),
+        ],
+        ds.gx, ds.gy, 12, out,
+        vmin=float(ds.ucs_true.min()),
+        vmax=float(ds.ucs_true.max()),
+        holes_xy=holes,
+        suptitle="residual test",
     )
     assert os.path.exists(path)
     assert os.path.getsize(path) > 1000

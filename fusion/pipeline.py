@@ -14,7 +14,11 @@ from mwd import mwd_features, PhysicsGuidedGPR
 from geostats import regression_kriging_3d
 from inversion import ricker, synthetic_seismic_volume, invert_volume, background_model
 from .calibration import ImpedanceStrengthCalibrator
-from .uncertainty_fusion import precision_weighted_fusion, simple_weighted_fusion
+from .uncertainty_fusion import (
+    simple_weighted_fusion,
+    doyen_collocated_update,
+    borehole_anchor_weight,
+)
 
 
 @dataclass
@@ -25,9 +29,28 @@ class FusionResult:
     S_Z: np.ndarray          # impedance-derived strength
     var_Z: np.ndarray
     S_weighted: np.ndarray   # simple-weighted baseline
-    S_F: np.ndarray          # uncertainty-aware fused strength
+    S_F: np.ndarray          # KED / collocated fused strength
     var_F: np.ndarray
     ucs_pts_std_mean: float
+    w_anchor: np.ndarray     # (nx, ny) primary (well) weight, 1 at collars
+    rho: float = 0.0         # corr(UCS, AI) at the holes
+
+
+def _n_unique_collars(ds) -> int:
+    xy = np.stack([np.asarray(ds.hole_ix), np.asarray(ds.hole_iy)], axis=1)
+    return int(np.unique(xy, axis=0).shape[0])
+
+
+def _median_xy_spacing(hole_xy) -> float | None:
+    xy = np.unique(np.asarray(hole_xy, dtype=float).reshape(-1, 2), axis=0)
+    if len(xy) < 2:
+        return None
+    nn = []
+    for i in range(len(xy)):
+        d = np.hypot(xy[:, 0] - xy[i, 0], xy[:, 1] - xy[i, 1])
+        d[i] = np.inf
+        nn.append(float(np.min(d)))
+    return float(np.median(nn))
 
 
 def run_fusion_pipeline(ds, noise: float = 0.05, lam: float = 5.0,
@@ -39,6 +62,14 @@ def run_fusion_pipeline(ds, noise: float = 0.05, lam: float = 5.0,
     When given, the seismic inversion is skipped so a well-count series can
     reuse one impedance field while the MWD branch and the AI→UCS calibrator
     see more holes.
+
+    Fusion (two or more collars) is kriging with external drift: borehole UCS
+    is the primary variable, the drift is ``(depth, S_Z)``, and the residual
+    variogram range is the hole-to-hole spacing so the mechanical leftover
+    that seismic cannot see is interpolated locally rather than smeared
+    across the block.  Doyen's collocated update (SPE 36498) is kept for a
+    single collar, where a GP-calibrated ``S_Z`` would otherwise overfit.
+    Hole voxels are written back to the MWD point estimates.
     """
     rng = np.random.default_rng(seed)
     nx, ny, nz = ds.ucs_true.shape
@@ -53,7 +84,11 @@ def run_fusion_pipeline(ds, noise: float = 0.05, lam: float = 5.0,
     S_M, var_krige = regression_kriging_3d(
         ds.hole_xyz, ucs_pts, zt_pts, ds.gx, ds.gy, ds.gz, zt_grid,
     )
-    var_M = var_krige + float(np.mean(ucs_pts_std**2))
+    # Hole voxels are hard data: keep the borehole estimate, do not let
+    # kriging / nugget smear it before fusion.
+    S_M = np.array(S_M, copy=True, dtype=float)
+    S_M[ds.hole_ix, ds.hole_iy, ds.hole_iz] = ucs_pts
+    var_M = np.maximum(np.asarray(var_krige, dtype=float), 0.0)
 
     # --- Seismic branch ---
     if ai_inv is None:
@@ -72,12 +107,56 @@ def run_fusion_pipeline(ds, noise: float = 0.05, lam: float = 5.0,
     S_Z, sigma_Z = calib.predict(ai_inv)
     var_Z = sigma_Z**2
 
-    # --- Fusion ---
+    # --- Fusion -----------------------------------------------------------
     S_weighted = simple_weighted_fusion(S_M, S_Z, w=0.5)
-    S_F, var_F = precision_weighted_fusion(S_M, var_M, S_Z, var_Z)
+    if np.std(ucs_pts) > 1e-12 and np.std(ai_at_holes) > 1e-12:
+        rho = float(np.corrcoef(np.ravel(ucs_pts), np.ravel(ai_at_holes))[0, 1])
+    else:
+        rho = 0.0
+    rho = float(np.nan_to_num(rho, nan=0.0))
+
+    sz_at_holes = S_Z[ds.hole_ix, ds.hole_iy, ds.hole_iz]
+    n_xy = _n_unique_collars(ds)
+    spacing = _median_xy_spacing(ds.hole_xyz[:, :2])
+
+    if n_xy >= 2 and spacing is not None:
+        # Xu/Journel KED: wells exact (after pin), seismic as drift.
+        # Residual range ~ hole spacing keeps alteration/ore leftovers
+        # local; vertical anisotropy uses the dense along-hole sampling.
+        # Doyen's ρ-shrinkage is avoided so S_Z peaks are not damped.
+        vrange = max(1.15 * float(spacing), 8.0)
+        drift_pts = np.column_stack([ds.hole_xyz[:, 2], sz_at_holes])
+        drift_grid = np.concatenate(
+            [zt_grid, np.asarray(S_Z, dtype=float)[..., None]], axis=-1,
+        )
+        S_F, var_ked = regression_kriging_3d(
+            ds.hole_xyz, ucs_pts, drift_pts, ds.gx, ds.gy, ds.gz, drift_grid,
+            residual_range=vrange, anisotropy_scaling_z=3.0,
+        )
+        var_F = np.maximum(np.asarray(var_ked, dtype=float), 0.0)
+        sill = float(np.percentile(var_F, 95)) + 1e-12
+        w_mwd = 1.0 - np.clip(var_F / sill, 0.0, 1.0)
+    else:
+        S_F, var_F, w_mwd = doyen_collocated_update(
+            S_M, var_M, S_Z, rho,
+            mean_primary=float(np.mean(ucs_pts)),
+            std_primary=float(np.std(ucs_pts) or 1.0),
+            mean_secondary=float(np.mean(sz_at_holes)),
+            std_secondary=float(np.std(sz_at_holes) or 1.0),
+        )
+
+    S_F = np.array(S_F, copy=True, dtype=float)
+    S_F[ds.hole_ix, ds.hole_iy, ds.hole_iz] = ucs_pts
+    var_F = np.maximum(np.asarray(var_F, dtype=float), 0.0)
+
+    w_xy = np.max(np.asarray(w_mwd, dtype=float), axis=2)
+    w_holes = borehole_anchor_weight(ds.gx, ds.gy, ds.hole_xyz[:, :2])
+    w_anchor = np.maximum(w_xy, w_holes)
 
     return FusionResult(
         ai_inv=ai_inv, S_M=S_M, var_M=var_M, S_Z=S_Z, var_Z=var_Z,
         S_weighted=S_weighted, S_F=S_F, var_F=var_F,
         ucs_pts_std_mean=float(np.mean(ucs_pts_std)),
+        w_anchor=w_anchor,
+        rho=rho,
     )

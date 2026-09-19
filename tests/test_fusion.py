@@ -3,6 +3,7 @@ import numpy as np
 from fusion import (
     precision_weighted_fusion,
     simple_weighted_fusion,
+    doyen_collocated_update,
     ImpedanceStrengthCalibrator,
 )
 
@@ -33,6 +34,79 @@ def test_precision_weighting_prefers_lower_variance():
 
 def test_simple_weighted_fusion():
     assert np.isclose(simple_weighted_fusion(10.0, 20.0, w=0.25), 17.5)
+
+
+def test_doyen_zero_variance_honors_primary():
+    mu_k = np.array([10.0, 30.0])
+    var_k = np.array([0.0, 0.0])
+    z = np.array([100.0, -50.0])
+    mu, var, w = doyen_collocated_update(
+        mu_k, var_k, z, rho=0.8,
+        mean_primary=20.0, std_primary=10.0,
+        mean_secondary=20.0, std_secondary=10.0,
+    )
+    assert np.allclose(mu, mu_k, atol=1e-9)
+    assert np.all(var < 1e-9)
+    assert np.all(w > 0.99)
+
+
+def test_doyen_far_field_is_linear_regression():
+    """When kriging variance = sill, the update is ρ toward the secondary."""
+    m_y, s_y = 50.0, 10.0
+    mu_k = np.array([m_y, m_y])
+    var_k = np.array([s_y ** 2, s_y ** 2])
+    z = np.array([70.0, 30.0])
+    rho = 0.8
+    mu, var, w = doyen_collocated_update(
+        mu_k, var_k, z, rho=rho,
+        mean_primary=m_y, std_primary=s_y,
+        mean_secondary=m_y, std_secondary=s_y,
+    )
+    expected = m_y + rho * (z - m_y)
+    assert np.allclose(mu, expected, atol=1e-6)
+    assert np.allclose(var, np.full(2, (1.0 - rho ** 2) * s_y ** 2), atol=1e-6)
+    assert np.allclose(w, 1.0 - rho ** 2, atol=1e-6)
+
+
+def test_borehole_anchor_weight_is_one_at_holes_zero_far_away():
+    from fusion import borehole_anchor_weight
+
+    gx = np.linspace(0.0, 50.0, 26)
+    gy = np.linspace(0.0, 80.0, 41)
+    holes = np.array([[25.0, 40.0], [10.0, 20.0]])
+    w = borehole_anchor_weight(gx, gy, holes, radius=8.0)
+    i = int(np.argmin(np.abs(gx - 25.0)))
+    j = int(np.argmin(np.abs(gy - 40.0)))
+    assert w[i, j] > 0.95
+    # Far from both collars.
+    i0 = int(np.argmin(np.abs(gx - 48.0)))
+    j0 = int(np.argmin(np.abs(gy - 78.0)))
+    assert w[i0, j0] < 0.05
+
+
+def test_fusion_does_not_cancel_borehole_hard_data():
+    """Near holes, fused strength must stay with the MWD branch, not seismic."""
+    from datasets import generate_mine
+    from fusion import run_fusion_pipeline
+
+    ds = generate_mine(shape=(16, 20, 32), n_holes=6, seed=3)
+    res = run_fusion_pipeline(ds, seed=3)
+    sm = res.S_M[ds.hole_ix, ds.hole_iy, ds.hole_iz]
+    sf = res.S_F[ds.hole_ix, ds.hole_iy, ds.hole_iz]
+    sz = res.S_Z[ds.hole_ix, ds.hole_iy, ds.hole_iz]
+    # Hole voxels: fusion ≈ MWD, not pulled halfway to impedance.
+    assert np.mean(np.abs(sf - sm)) < 0.2 * np.mean(np.abs(sz - sm) + 1e-6)
+    assert res.w_anchor.shape == (ds.gx.size, ds.gy.size)
+    assert float(res.w_anchor.max()) > 0.9
+    assert abs(res.rho) <= 1.0
+    # Volume fusion should improve on well-only kriging when several collars
+    # constrain the collocated secondary.
+    from validation import summary
+    fused = summary(ds.ucs_true, res.S_F)
+    mwd = summary(ds.ucs_true, res.S_M)
+    seis = summary(ds.ucs_true, res.S_Z)
+    assert fused["RMSE"] <= mwd["RMSE"] + 1e-6
+    assert fused["RMSE"] <= seis["RMSE"] + 1e-6
 
 
 def test_impedance_calibration_monotonic():

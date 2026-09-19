@@ -8,7 +8,7 @@ r"""End-to-end MWD-Seismic physics-constrained strength-fusion benchmark.
    -> S_MWD, var_MWD              -> S_Z, var_Z
         \______________ fusion _______________/
                           |
-        precision-weighted (uncertainty-aware) fusion
+     collocated KED (wells + seismic drift; Doyen if one collar)
                           |
                   S_fused, sigma_fused   -> compare to UCS_true
 
@@ -74,7 +74,7 @@ def main() -> None:
         "Case1 MWD-only":       res.S_M,
         "Case2 Seismic-only":   res.S_Z,
         "Case3 Simple-weighted": res.S_weighted,
-        "Case4 Uncertainty-aware (proposed)": res.S_F,
+        "Case4 KED fusion (proposed)": res.S_F,
     }
     print(f"\n   {'Case':<38}{'R2':>8}{'RMSE':>10}{'MAE':>10}")
     metrics = {}
@@ -116,7 +116,7 @@ def main() -> None:
         cbar_label="UCS (MPa)",
     )
 
-    best = metrics["Case4 Uncertainty-aware (proposed)"]
+    best = metrics["Case4 KED fusion (proposed)"]
     print("\n=== Fusion benchmark complete ===")
     print(f"   panels : {fig_panels}")
     print(f"   proposed fusion : R2={best['R2']:.3f} RMSE={best['RMSE']:.2f} "

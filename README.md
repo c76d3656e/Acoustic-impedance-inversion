@@ -10,7 +10,7 @@
                                                               ╲
  三维地震 ─▶ 波阻抗反演 ─▶ AI→UCS 标定 ─▶ S_Z, σ_Z
                                                               ╱
-              不确定度感知（精度加权）融合 ─▶ S_fused, σ_fused
+     共定位外漂移克里金（KED：井 + 波阻抗漂移） ─▶ S_fused, σ_fused
                                               │
                           三维强度体 ─▶ 水平切片（如 z = −20 m）
 ```
@@ -19,17 +19,9 @@
 
 完整公式、推导与钻孔数量实验见 **[docs/技术说明.md](docs/技术说明.md)**。图件保存在 [`docs/images/`](docs/images/)。
 
-## 为什么要用不确定度感知融合？
+## 为什么用共定位协克里金，而不是把两张图画平均？
 
-把每一路看成高斯估计 \(N(\mu,\sigma^2)\)，逆方差组合
-
-```
-μ_f = (μ_M/σ_M² + μ_Z/σ_Z²) / (1/σ_M² + 1/σ_Z²)      σ_f² = 1 / (1/σ_M² + 1/σ_Z²)
-```
-
-会让**局部更可信的源自动占优**——钻孔附近信 MWD，远离钻孔则信连续波阻抗场。
-
-仅靠钻孔做三维克里金插值，即使在 \(50\times 80\,\mathrm{m}\) 爆破块上 12 口孔平均也有约 18 m 间距，孔间仍然过平滑；波阻抗场是全空间连续的，标定成强度后把结构补上。钻孔的真正用处是：**给 \(\mathrm{AI}\to\mathrm{UCS}\) 当标定样本**，以及在孔旁把风化/蚀变等力学残差钉回去——不是把全矿插值填满。在本仓库基准上，不确定度加权融合显著优于「仅钻孔插值」和「固定权重平均」。
+稀疏准的钻孔和全区连续的地震，是储层建模里同一类问题。Xu 等（SPE 24742）的做法是**外漂移克里金**（井为硬数据，地震为漂移）；Doyen 等（SPE 36498）把共定位协克里金写成对井克里金的贝叶斯更新。Doyen 更新在远处按 \(\rho\) 把次变量异常往均值缩，硬矿体峰值会被压矮。本仓库在两口井及以上用 **KED**：主变量为孔点 UCS，漂移为 \((\mathrm{depth}, S_Z)\)，残差变程取孔距、垂向各向异性，力学残差只在孔旁插值，波阻抗的峰值不被 \(\rho\) 打折。单口井仍走 Doyen，避免 GP 标定过拟合铺满全块。孔轨迹体素始终写回 MWD 点估计。
 
 ## 项目结构
 
@@ -42,7 +34,7 @@
 │                    #   PyLops 叠后反演
 ├── preprocessing/   # SEG-Y (segyio)、LAS (lasio)、深度↔时间标定
 ├── geostats/        # 三维普通克里金与回归克里金（均值 + 方差）
-├── fusion/          # AI→UCS 标定（GP）+ 精度加权融合
+├── fusion/          # AI→UCS 标定（GP）+ 外漂移克里金 / Doyen 更新
 ├── validation/      # R²、RMSE、MAE、盲井检验
 ├── visualization/   # 切片、剖面、融合面板、PyVista 三维
 ├── examples/        # 基准、可视化、文档出图脚本
@@ -74,7 +66,7 @@ python3 examples/run_fusion_benchmark.py --outdir results
 - `S_fused.npy`、`sigma_fused.npy`、`S_true.npy`
 - `figures/fusion_panels.png` — (a) MWD 强度，(b) 地震波阻抗，(c) 阻抗导出强度，(d) 融合强度，(e) 融合不确定度
 - `figures/fused_strength_elev_{-8,-20,-32}.png` — 水平切片
-- 四种方案的指标表（仅 MWD、仅地震、简单加权、不确定度加权）以及 **空间盲孔** MWD 留出得分
+- 四种方案的指标表（仅 MWD、仅地震、简单加权、共定位协克里金）以及 **空间盲孔** MWD 留出得分
 
 再生成本仓库跟踪的中文技术图件（融合优势对比 + 1→12 口钻孔系列）：
 
@@ -105,7 +97,7 @@ python3 examples/run_visualizations.py --outdir results/viz
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fc76d3656e%2FAcoustic-impedance-inversion&root-directory=frontend&project-name=mine-fusion-viz&repository-name=mine-fusion-viz)
 
-`frontend/` 是 Vite + React + TypeScript + WebGL2 应用，随仓库发布**固定数据集**，全部在浏览器中计算：可拖动 X/Y/Z 切片、半透明三维体 + 可移动剖面、多井测井曲线、自定义强度色标，以及 **Pyodide + matplotlib 在浏览器内出中文出版图**。部署是 100% 静态前端（Root Directory = `frontend`），无后端、无 serverless。
+`frontend/` 是 Vite + React + TypeScript + WebGL2 应用，随仓库发布**固定数据集**（KED 融合的 \(S_M,S_Z,S_F\) 与真值），全部在浏览器中计算：可切换各分支场、融合对比（含预测−真值热力图）、拖动 X/Y/Z 切片、半透明三维体 + 可移动剖面、多井测井曲线（真值 / MWD / 波阻抗 / 融合）、自定义强度色标，以及 **Pyodide + matplotlib 在浏览器内出中文出版图**（当前切片、融合优势 2×4、沿孔剖面）。部署是 100% 静态前端（Root Directory = `frontend`），无后端、无 serverless。
 
 ```bash
 python3 scripts/export_frontend_dataset.py   # 重新导出固定数据集（确定性）
