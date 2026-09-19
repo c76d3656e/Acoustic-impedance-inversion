@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Colormap, FieldVolume, Manifest, SliceAxis, ViewMode, Well } from "./types";
+import type { Colormap, FieldVolume, Manifest, SliceAxis, ViewMode, VolumeStyle, Well } from "./types";
 import { DEFAULT_COMPARE_KEYS } from "./types";
 import { loadField, loadManifest, loadWells } from "./data/loader";
 import { PRESETS, DEFAULT_CUSTOM } from "./viz/colormaps";
@@ -14,12 +14,10 @@ interface AppState {
   colormap: Colormap;
   reverse: boolean;
   view: ViewMode;
-  showBoreholes: boolean;
+  volumeStyle: VolumeStyle;
   volumeOpacity: number;
-  sectionOn: boolean;
-  sectionAxis: SliceAxis;
-  sectionIndex: number;
   sectionReverse: boolean;
+  showBoreholes: boolean;
   selectedWell: string | null;
   error: string | null;
   ready: boolean;
@@ -32,12 +30,10 @@ interface AppState {
   setColormap: (c: Colormap) => void;
   setReverse: (r: boolean) => void;
   setView: (v: ViewMode) => void;
-  setShowBoreholes: (b: boolean) => void;
+  setVolumeStyle: (v: VolumeStyle) => void;
   setVolumeOpacity: (v: number) => void;
-  setSectionOn: (b: boolean) => void;
-  setSectionAxis: (a: SliceAxis) => void;
-  setSectionIndex: (v: number) => void;
   setSectionReverse: (b: boolean) => void;
+  setShowBoreholes: (b: boolean) => void;
   setSelectedWell: (id: string | null) => void;
   currentField: () => FieldVolume | null;
 }
@@ -58,12 +54,10 @@ export const useStore = create<AppState>((set, get) => ({
   colormap: PRESETS[0],
   reverse: false,
   view: "2d",
-  showBoreholes: true,
+  volumeStyle: "voxel",
   volumeOpacity: 0.45,
-  sectionOn: false,
-  sectionAxis: "x",
-  sectionIndex: 12,
   sectionReverse: false,
+  showBoreholes: true,
   selectedWell: null,
   error: null,
   ready: false,
@@ -135,14 +129,8 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
   setShowBoreholes: (b) => set({ showBoreholes: b }),
+  setVolumeStyle: (v) => set({ volumeStyle: v }),
   setVolumeOpacity: (v) => set({ volumeOpacity: v }),
-  setSectionOn: (b) => set({ sectionOn: b }),
-  setSectionAxis: (a) => {
-    const m = get().manifest;
-    const dim = m ? { x: m.grid.nx, y: m.grid.ny, z: m.grid.nz }[a] : 2;
-    set({ sectionAxis: a, sectionIndex: Math.floor(dim / 2) });
-  },
-  setSectionIndex: (v) => set({ sectionIndex: v }),
   setSectionReverse: (b) => set({ sectionReverse: b }),
   setSelectedWell: (id) => set({ selectedWell: id }),
   currentField: () => get().fields[get().fieldKey] ?? null,

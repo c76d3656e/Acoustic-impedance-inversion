@@ -64,6 +64,8 @@ export type SliceAxis = "x" | "y" | "z";
 
 export type ViewMode = "2d" | "3d" | "compare";
 
+export type VolumeStyle = "voxel" | "slices";
+
 export type ExportKind = "slice" | "compare" | "profile";
 
 /** A colormap defined by anchor stops; used identically in WebGL and matplotlib. */

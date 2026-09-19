@@ -1,21 +1,24 @@
-import { useEffect, useMemo, useRef } from "react";
+import { Component, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { useShallow } from "zustand/react/shallow";
 import * as THREE from "three";
 import { useStore } from "../store";
 import { buildLUT } from "../viz/colormaps";
-import { extractSlice, sliceToImageData } from "../viz/slice";
-import type { FieldVolume, Manifest, SliceAxis } from "../types";
+import { drawScaled, extractSlice, sliceToImageData } from "../viz/slice";
+import type { FieldVolume, Manifest, SliceAxis, Well } from "../types";
+import { t } from "../i18n";
 
 const S = 1 / 100; // meters -> world units
+const AXES: SliceAxis[] = ["x", "y", "z"];
+const ACTIVE_EDGE = new THREE.Color("#5ac8fa");
+const IDLE_EDGE = new THREE.Color("#5a6478");
 
-/* ---------- volume raymarch shaders (WebGL2 / GLSL3) ---------- */
 const VERT = /* glsl */ `
 out vec3 vOrigin;
 out vec3 vDir;
 void main() {
-  vec3 p = position + 0.5;                       // unit cube [0,1]
+  vec3 p = position + 0.5;
   vec3 camLocal = (inverse(modelMatrix) * vec4(cameraPosition, 1.0)).xyz + 0.5;
   vOrigin = camLocal;
   vDir = p - camLocal;
@@ -77,7 +80,6 @@ void main() {
 }
 `;
 
-/* ---------- helpers for the opaque cut-face quad ---------- */
 function corners(m: Manifest, axis: SliceAxis, index: number) {
   const { x, y, z } = m.axes;
   const X = (v: number) => v * S, Y = (v: number) => v * S, Z = (v: number) => v * S;
@@ -113,15 +115,48 @@ function writeQuad(geom: THREE.BufferGeometry, c: number[][]) {
   geom.computeBoundingSphere();
 }
 
-function drawSlice(
-  canvas: HTMLCanvasElement, field: FieldVolume, m: Manifest,
-  axis: SliceAxis, index: number, lut: Uint8Array,
+function writeLoop(geom: THREE.BufferGeometry, c: number[][]) {
+  const [bl, br, tr, tl] = c;
+  const p = geom.getAttribute("position") as THREE.BufferAttribute;
+  (p.array as Float32Array).set([...bl, ...br, ...tr, ...tl]);
+  p.needsUpdate = true;
+  geom.computeBoundingSphere();
+}
+
+function paintSlice(
+  canvas: HTMLCanvasElement,
+  field: FieldVolume,
+  m: Manifest,
+  axis: SliceAxis,
+  index: number,
+  lut: Uint8Array,
+  wells: Well[],
+  showHoles: boolean,
 ) {
   const slice = extractSlice(field, m, axis, index);
   const img = sliceToImageData(slice, lut, field.meta.min, field.meta.max);
-  canvas.width = slice.w;
-  canvas.height = slice.h;
-  canvas.getContext("2d")!.putImageData(img, 0, 0);
+  const scale = Math.max(2, Math.round(512 / Math.max(slice.w, slice.h)));
+  canvas.width = slice.w * scale;
+  canvas.height = slice.h * scale;
+  drawScaled(canvas, img);
+  if (showHoles && axis === "z") {
+    const ctx = canvas.getContext("2d")!;
+    const W = canvas.width, H = canvas.height;
+    const [x0, x1, y0, y1] = slice.extent;
+    for (const w of wells) {
+      const px = ((w.x - x0) / (x1 - x0)) * W;
+      const py = (1 - (w.y - y0) / (y1 - y0)) * H;
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI * 2);
+      ctx.strokeStyle = "#111";
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(px, py, 1.6, 0, Math.PI * 2);
+      ctx.fillStyle = "#111";
+      ctx.fill();
+    }
+  }
 }
 
 function buildData3D(field: FieldVolume, m: Manifest): THREE.Data3DTexture {
@@ -163,6 +198,51 @@ function buildLUTTexture(lut: Uint8Array): THREE.DataTexture {
   return tex;
 }
 
+type Plane = {
+  axis: SliceAxis;
+  mesh: THREE.Mesh;
+  edge: THREE.LineLoop;
+  geom: THREE.BufferGeometry;
+  edgeGeom: THREE.BufferGeometry;
+  tex: THREE.CanvasTexture;
+  canvas: HTMLCanvasElement;
+  mat: THREE.MeshBasicMaterial;
+  edgeMat: THREE.LineBasicMaterial;
+};
+
+function makePlane(axis: SliceAxis): Plane {
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(18), 3));
+  geom.setAttribute("uv", new THREE.BufferAttribute(
+    new Float32Array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1]), 2));
+  const canvas = document.createElement("canvas");
+  canvas.width = 2;
+  canvas.height = 2;
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.flipY = true;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  const mat = new THREE.MeshBasicMaterial({
+    map: tex,
+    side: THREE.DoubleSide,
+    transparent: false,
+    opacity: 1,
+    depthWrite: true,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
+  });
+  const mesh = new THREE.Mesh(geom, mat);
+  const edgeGeom = new THREE.BufferGeometry();
+  edgeGeom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(12), 3));
+  const edgeMat = new THREE.LineBasicMaterial({ color: IDLE_EDGE });
+  const edge = new THREE.LineLoop(edgeGeom, edgeMat);
+  edge.renderOrder = 4;
+  return { axis, mesh, edge, geom, edgeGeom, tex, canvas, mat, edgeMat };
+}
+
 function Scene() {
   const manifest = useStore((s) => s.manifest);
   const field = useStore((s) => s.currentField());
@@ -170,14 +250,18 @@ function Scene() {
   const colormap = useStore((s) => s.colormap);
   const reverse = useStore((s) => s.reverse);
   const showBoreholes = useStore((s) => s.showBoreholes);
+  const axis = useStore((s) => s.axis);
+  const sliceIndex = useStore(useShallow((s) => s.sliceIndex));
+  const volumeStyle = useStore((s) => s.volumeStyle);
   const volumeOpacity = useStore((s) => s.volumeOpacity);
-  const sectionOn = useStore((s) => s.sectionOn);
-  const sectionAxis = useStore((s) => s.sectionAxis);
-  const sectionIndex = useStore((s) => s.sectionIndex);
   const sectionReverse = useStore((s) => s.sectionReverse);
   const grid = useStore(useShallow((s) => s.manifest?.grid));
 
   const lut = useMemo(() => buildLUT(colormap, reverse), [colormap, reverse]);
+  const planeGroup = useMemo(() => new THREE.Group(), []);
+  const boreholeGroup = useMemo(() => new THREE.Group(), []);
+  const planesRef = useRef<Plane[] | null>(null);
+  const boreholesRef = useRef<THREE.Line[]>([]);
 
   const material = useMemo(
     () =>
@@ -188,8 +272,8 @@ function Scene() {
           uLUT: { value: null },
           uOpacity: { value: 0.45 },
           uSteps: { value: 160 },
-          uClipOn: { value: 0 },
-          uClipAxis: { value: 0 },
+          uClipOn: { value: 1 },
+          uClipAxis: { value: 2 },
           uClipPos: { value: 0.5 },
           uClipSide: { value: 1 },
         },
@@ -202,12 +286,6 @@ function Scene() {
     [],
   );
 
-  const sectionRef = useRef<{ mesh: THREE.Mesh; geom: THREE.BufferGeometry; tex: THREE.CanvasTexture; canvas: HTMLCanvasElement } | null>(null);
-  const sectionGroup = useMemo(() => new THREE.Group(), []);
-  const boreholeGroup = useMemo(() => new THREE.Group(), []);
-  const boreholesRef = useRef<THREE.Line[]>([]);
-
-  // Data3D texture on field change.
   useEffect(() => {
     if (!manifest || !field) return;
     const tex = buildData3D(field, manifest);
@@ -216,7 +294,6 @@ function Scene() {
     prev?.dispose();
   }, [manifest, field, material]);
 
-  // LUT texture on colormap change.
   useEffect(() => {
     const tex = buildLUTTexture(lut);
     const prev = material.uniforms.uLUT.value as THREE.DataTexture | null;
@@ -224,55 +301,67 @@ function Scene() {
     prev?.dispose();
   }, [lut, material]);
 
-  // Uniforms: opacity + clipping plane.
   useEffect(() => {
     if (!grid) return;
+    const voxel = volumeStyle === "voxel";
     material.uniforms.uOpacity.value = volumeOpacity;
-    material.uniforms.uClipOn.value = sectionOn ? 1 : 0;
-    const axisNum = sectionAxis === "x" ? 0 : sectionAxis === "y" ? 1 : 2;
+    material.uniforms.uClipOn.value = voxel ? 1 : 0;
+    const axisNum = axis === "x" ? 0 : axis === "y" ? 1 : 2;
     material.uniforms.uClipAxis.value = axisNum;
     const dim = axisNum === 0 ? grid.nx : axisNum === 1 ? grid.ny : grid.nz;
-    const frac = sectionIndex / (dim - 1);
+    const frac = sliceIndex[axis] / Math.max(1, dim - 1);
     material.uniforms.uClipPos.value = axisNum === 2 ? 1 - frac : frac;
     material.uniforms.uClipSide.value = sectionReverse ? -1 : 1;
-  }, [grid, volumeOpacity, sectionOn, sectionAxis, sectionIndex, sectionReverse, material]);
+  }, [grid, volumeStyle, volumeOpacity, axis, sliceIndex, sectionReverse, material]);
 
-  // Section cut-face quad (create once).
+  useEffect(() => () => {
+    (material.uniforms.uData.value as THREE.Texture | null)?.dispose();
+    (material.uniforms.uLUT.value as THREE.Texture | null)?.dispose();
+    material.dispose();
+  }, [material]);
+
   useEffect(() => {
-    if (!manifest || !field || sectionRef.current) return;
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(18), 3));
-    geom.setAttribute("uv", new THREE.BufferAttribute(
-      new Float32Array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1]), 2));
-    const canvas = document.createElement("canvas");
-    canvas.width = 2;
-    canvas.height = 2; // valid initial size to avoid a 0-dim texture upload warning
-    const tex = new THREE.CanvasTexture(canvas);
-    const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
-    const mesh = new THREE.Mesh(geom, mat);
-    sectionGroup.add(mesh);
-    sectionRef.current = { mesh, geom, tex, canvas };
+    const planes = AXES.map(makePlane);
+    for (const p of planes) {
+      planeGroup.add(p.mesh);
+      planeGroup.add(p.edge);
+    }
+    planesRef.current = planes;
     return () => {
-      sectionGroup.remove(mesh);
-      geom.dispose();
-      mat.dispose();
-      tex.dispose();
-      sectionRef.current = null;
+      for (const p of planes) {
+        planeGroup.remove(p.mesh);
+        planeGroup.remove(p.edge);
+        p.geom.dispose();
+        p.edgeGeom.dispose();
+        p.mat.dispose();
+        p.edgeMat.dispose();
+        p.tex.dispose();
+      }
+      planesRef.current = null;
     };
-  }, [manifest, field, sectionGroup]);
+  }, [planeGroup]);
 
-  // Update cut-face quad on section change.
   useEffect(() => {
-    const s = sectionRef.current;
-    if (!s || !manifest || !field) return;
-    s.mesh.visible = sectionOn;
-    if (!sectionOn) return;
-    drawSlice(s.canvas, field, manifest, sectionAxis, sectionIndex, lut);
-    s.tex.needsUpdate = true;
-    writeQuad(s.geom, corners(manifest, sectionAxis, sectionIndex));
-  }, [manifest, field, sectionOn, sectionAxis, sectionIndex, lut]);
+    const planes = planesRef.current;
+    if (!planes || !manifest || !field) return;
+    const slices = volumeStyle === "slices";
+    for (const p of planes) {
+      const idx = sliceIndex[p.axis];
+      const active = p.axis === axis;
+      const show = slices || active;
+      p.mesh.visible = show;
+      p.edge.visible = show;
+      if (!show) continue;
+      paintSlice(p.canvas, field, manifest, p.axis, idx, lut, wells, showBoreholes);
+      p.tex.needsUpdate = true;
+      const c = corners(manifest, p.axis, idx);
+      writeQuad(p.geom, c);
+      writeLoop(p.edgeGeom, c);
+      p.mesh.renderOrder = active ? 3 : 1;
+      p.edgeMat.color.copy(active ? ACTIVE_EDGE : IDLE_EDGE);
+    }
+  }, [manifest, field, lut, axis, sliceIndex, wells, showBoreholes, volumeStyle]);
 
-  // Boreholes (create once).
   useEffect(() => {
     if (!manifest || !wells.length || boreholesRef.current.length) return;
     for (const w of wells) {
@@ -295,7 +384,6 @@ function Scene() {
     };
   }, [manifest, wells, boreholeGroup]);
 
-  // Borehole colors + visibility.
   useEffect(() => {
     if (!field) return;
     const span = field.meta.max - field.meta.min || 1;
@@ -329,12 +417,16 @@ function Scene() {
 
   return (
     <>
-      <ambientLight intensity={1} />
-      <mesh position={[cx, cy, cz]} scale={[sx, sy, sz]}>
+      <mesh
+        position={[cx, cy, cz]}
+        scale={[sx, sy, sz]}
+        visible={volumeStyle === "voxel"}
+        renderOrder={0}
+      >
         <boxGeometry args={[1, 1, 1]} />
         <primitive object={material} attach="material" />
       </mesh>
-      <primitive object={sectionGroup} />
+      <primitive object={planeGroup} />
       <primitive object={boreholeGroup} />
       <box3Helper args={[box, new THREE.Color("#3a4152")]} />
       <axesHelper args={[0.8]} />
@@ -343,20 +435,37 @@ function Scene() {
   );
 }
 
+class GLErrorBoundary extends Component<{ children: ReactNode }, { err: string | null }> {
+  state: { err: string | null } = { err: null };
+  static getDerivedStateFromError(e: Error) {
+    return { err: e.message || "WebGL" };
+  }
+  render() {
+    if (this.state.err) return <div className="loading3d">{t.webglError}</div>;
+    return this.props.children;
+  }
+}
+
 export default function Volume3D() {
   const manifest = useStore((s) => s.manifest);
   const cam = useMemo<[number, number, number]>(() => {
     if (!manifest) return [6, -5, 6];
     const { x, y } = manifest.axes;
-    return [x[x.length - 1] * S * 1.5, -y[y.length - 1] * S * 1.3, y[y.length - 1] * S * 1.7];
+    return [x[x.length - 1] * S * 1.55, -y[y.length - 1] * S * 1.35, y[y.length - 1] * S * 1.55];
   }, [manifest]);
   if (!manifest) return null;
   return (
     <div className="view3d">
-      <Canvas camera={{ position: cam, fov: 45, up: [0, 0, 1] }} dpr={[1, 2]}>
-        <color attach="background" args={["#0b0e14"]} />
-        <Scene />
-      </Canvas>
+      <GLErrorBoundary>
+        <Canvas
+          camera={{ position: cam, fov: 45, up: [0, 0, 1] }}
+          dpr={[1, 2]}
+          gl={{ antialias: true, failIfMajorPerformanceCaveat: false, powerPreference: "high-performance" }}
+        >
+          <color attach="background" args={["#0b0e14"]} />
+          <Scene />
+        </Canvas>
+      </GLErrorBoundary>
     </div>
   );
 }
