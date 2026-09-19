@@ -79,6 +79,19 @@ export const t = {
   compareSuptitle: "融合优势对比",
   profileSuptitle: "沿孔剖面：融合在孔上钉回硬数据；波阻抗只给出趋势",
   clickPanel: "点击面板可切换到该场的二维切片",
+
+  mobileControls: "场色",
+  mobileScene: "画面",
+  mobileData: "钻孔",
+  mobileDock: "移动端操作",
+  mobileClose: "关闭",
+  mobileHud: "切片与视图",
+  hudView2d: "二维",
+  hudView3d: "三维",
+  hudViewCompare: "对比",
+  hudAxisX: "X",
+  hudAxisY: "Y",
+  hudAxisZ: "Z",
 };
 
 export type I18nKey = keyof typeof t;
