@@ -34,6 +34,12 @@ html[data-theme="light"] {
   --scrim: rgba(15, 23, 42, 0.28);
   --handle: rgba(15, 23, 42, 0.22);
   --page-bg: #eceef1;
+
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Helvetica Neue", "Segoe UI", "AppCJK", "Noto Sans CJK SC",
+    "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 html[data-theme="dark"] {
@@ -61,13 +67,6 @@ html[data-theme="dark"] {
   --scrim: rgba(0, 0, 0, 0.42);
   --handle: rgba(255, 255, 255, 0.28);
   --page-bg: #0b0e14;
-}
-
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
-    "Helvetica Neue", "Segoe UI", "AppCJK", "Noto Sans CJK SC",
-    "Microsoft YaHei", system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
 * { box-sizing: border-box; }
