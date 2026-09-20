@@ -17,11 +17,11 @@
 
 这**不是**端到端黑盒网络，而是**双分支独立反演 + 物理约束的后期融合**：公开数据中不存在共定位的 `MWD + UCS + 三维地震 + AI`。每一分支先在可复现的公开风格数据上验证，融合再在共定位合成矿山真值上定量评价。
 
-完整公式、推导与钻孔数量实验见 **[docs/技术说明.md](docs/技术说明.md)**。插值核、变差函数与文献推导见 **[docs/插值方法.md](docs/插值方法.md)**。图件保存在 [`docs/images/`](docs/images/)。
+完整公式、图件与钻孔数量实验见 **[docs/技术说明.md](docs/技术说明.md)**。图件保存在 [`docs/images/`](docs/images/)。
 
 ## 为什么用共定位协克里金，而不是把两张图画平均？
 
-稀疏准的钻孔和全区连续的地震，是储层建模里同一类问题。Xu 等（SPE 24742）的做法是**外漂移克里金**（井为硬数据，地震为漂移）；Doyen 等（SPE 36498）把共定位协克里金写成对井克里金的贝叶斯更新。Doyen 更新在远处按 $\rho$ 把次变量异常往均值缩，硬矿体峰值会被压矮。本仓库在两口井及以上用 **KED**：主变量为孔点 UCS，漂移为 $(\mathrm{depth}, S_Z)$，残差变程取孔距、垂向各向异性，力学残差只在孔旁插值，波阻抗的峰值不被 $\rho$ 打折。单口井仍走 Doyen，避免 GP 标定过拟合铺满全块。孔轨迹体素始终写回 MWD 点估计。详细公式与文献见 [docs/技术说明.md](docs/技术说明.md) 与 [docs/插值方法.md](docs/插值方法.md)。
+稀疏准的钻孔和全区连续的地震，是储层建模里同一类问题。Xu 等（SPE 24742）的做法是**外漂移克里金**（井为硬数据，地震为漂移）；Doyen 等（SPE 36498）把共定位协克里金写成对井克里金的贝叶斯更新。Doyen 更新在远处按 $\rho$ 把次变量异常往均值缩，硬矿体峰值会被压矮。本仓库在两口井及以上用 **KED**：主变量为孔点 UCS，漂移为 $(\mathrm{depth}, S_Z)$，残差变程取孔距、垂向各向异性，力学残差只在孔旁插值，波阻抗的峰值不被 $\rho$ 打折。单口井仍走 Doyen，避免 GP 标定过拟合铺满全块。孔轨迹体素始终写回 MWD 点估计。详细公式与文献见 [docs/技术说明.md](docs/技术说明.md)。
 
 ## 项目结构
 
@@ -38,7 +38,7 @@
 ├── validation/      # R²、RMSE、MAE、盲井检验
 ├── visualization/   # 切片、剖面、融合面板、PyVista 三维
 ├── examples/        # 基准、可视化、文档出图脚本
-├── docs/            # 技术说明 + 已跟踪的图件（docs/images/）
+├── docs/            # 技术说明（docs/技术说明.md）+ 已跟踪的图件（docs/images/）
 ├── scripts/         # download_datasets.py（真实数据，需手动下载）
 └── tests/           # pytest 套件
 ```
@@ -130,7 +130,7 @@ python scripts/download_datasets.py --dataset penobscot --dest data/penobscot
 
 ## 主要文献
 
-方法选择对应的是已发表工作，不是另起一套插值核。完整编号文献见 [docs/技术说明.md](docs/技术说明.md) 与 [docs/插值方法.md](docs/插值方法.md)。
+方法选择对应的是已发表工作，不是另起一套插值核。完整编号文献见 [docs/技术说明.md](docs/技术说明.md)。
 
 - Teale, R. The concept of specific energy in rock drilling. *Int. J. Rock Mech. Min. Sci.* **2**, 57–73 (1965). — MWD 比能与强度单调。
 - Leung, R. & Scheding, S. Automated coal seam detection using a modulated specific energy measure in a monitor-while-drilling context. *Int. J. Rock Mech. Min. Sci.* **75**, 196–209 (2015). — 露天矿爆破孔 MWD 比能。
